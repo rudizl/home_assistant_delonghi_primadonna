@@ -33,7 +33,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await asyncio.sleep(30)
         await delonghi_device.get_device_name()
 
-    hass.async_create_task(delayed_init())a
+    hass.async_create_task(delayed_init())
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     async def make_beverage(call: ServiceCall) -> None:
