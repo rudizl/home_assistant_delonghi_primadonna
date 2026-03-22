@@ -386,6 +386,9 @@ class DelongiPrimadonna:
                 'description',
                 DEVICE_NOTIFICATION.get(str(bytearray(value))).description,
             )
+            # Update power state when machine turns off
+            if event_data.get('description') == 'DeviceOFF':
+                self.switches.is_on = False
         self._hass.bus.async_fire(f'{DOMAIN}_event', event_data)
 
         if self.notify:
@@ -687,7 +690,7 @@ class DelongiPrimadonna:
                             timeout=10,
                         )
                     except asyncio.TimeoutError:
-                        _LOGGER.warning(
+                        _LOGGER.debug(
                             'Timeout waiting for response to command: %s',
                             hexlify(bytearray(message_to_send), " ")
                         )
