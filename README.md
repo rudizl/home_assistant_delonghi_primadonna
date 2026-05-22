@@ -16,6 +16,17 @@ This is a fork of [JoelyMoley/home_assistant_delonghi_primadonna](https://github
 - **Prevent statistics timeout in standby** — Statistics requests are now skipped when the machine is off/in standby, eliminating timeout warnings in the logs.
 - **Skip statistics update when machine is off** — The HA sensor update cycle no longer triggers statistics polling when the machine is powered off.
 - **Power off support** — Inherited from JoelyMoley's fork, adds a power switch entity to turn the machine off remotely.
+- **Optimistic power switch state** — The power switch holds its state for 60 s after turn-on and 30 s after turn-off, preventing flickering while the machine boots or shuts down.
+- **Bug fixes (2026.5.22)**:
+  - Fixed `datetime.now()` → `datetime.datetime.now()` in the time-sync switch (would crash on activation)
+  - Fixed `turn_on`/`turn_off` sync methods → `async_turn_on`/`async_turn_off` in `TimeSyncSwitch`
+  - Fixed `await` on sync `async_update_entry()` in the options flow (would raise `TypeError`)
+  - Fixed `make_beverage` service not being unregistered on integration unload (double-registration on reload)
+  - Fixed `COFFEE_GROUNDS_CONTAINER_CLEAN` event reporting as `GroundsContainerFull` instead of `GroundsContainerClean`
+  - Fixed `SwitchesSensor` incorrectly declared as `ENUM` device class while returning comma-joined multi-switch values
+  - Fixed `entity_category` property signatures carrying `**kwargs` (invalid Python property syntax)
+  - Fixed `asyncio.exceptions.TimeoutError` → `asyncio.TimeoutError` for broader Python compatibility
+  - Optimised `DEVICE_NOTIFICATION` lookup from 3× to 1× per notification in `_event_trigger`
 
 ## Installation via HACS
 
