@@ -42,9 +42,6 @@
       }
     },
     "switch": {
-      "power": {
-        "name": "Power"
-      },
       "cup_light": {
         "name": "Cup light"
       },

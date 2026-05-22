@@ -108,7 +108,7 @@ class DelongiPrimadonnaCupLightSwitch(
             self._attr_is_on = last_state.state == 'on'
 
     @property
-    def entity_category(self, **kwargs: Any) -> None:
+    def entity_category(self) -> EntityCategory:
         """Return the category of the entity."""
         return EntityCategory.CONFIG
 
@@ -140,12 +140,12 @@ class DelongiPrimadonnaNotificationSwitch(
             self.device.notify = last_state.state == 'on'
 
     @property
-    def is_on(self, **kwargs: Any) -> None:
+    def is_on(self) -> bool:
         """Checks is the notification ON."""
         return self.device.notify
 
     @property
-    def entity_category(self, **kwargs: Any) -> None:
+    def entity_category(self) -> EntityCategory:
         """Return the category of the entity."""
         return EntityCategory.DIAGNOSTIC
 
@@ -172,7 +172,7 @@ class DelongiPrimadonnaPowerSaveSwitch(
             self._attr_is_on = last_state.state == 'on'
 
     @property
-    def entity_category(self, **kwargs: Any) -> None:
+    def entity_category(self) -> EntityCategory:
         """Return the category of the entity"""
         return EntityCategory.CONFIG
 
@@ -201,7 +201,7 @@ class DelongiPrimadonnaSoundsSwitch(
             self._attr_is_on = last_state.state == 'on'
 
     @property
-    def entity_category(self, **kwargs: Any) -> None:
+    def entity_category(self) -> EntityCategory:
         """Return the category of the entity."""
         return EntityCategory.CONFIG
 
@@ -229,16 +229,18 @@ class DelongiPrimadonnaTimeSyncSwitch(
             self._attr_is_on = last_state.state == 'on'
 
     @property
-    def entity_category(self, **kwargs: Any) -> None:
+    def entity_category(self) -> EntityCategory:
         """Return the category of the entity."""
         return EntityCategory.CONFIG
 
-    def turn_on(self, **kwargs: Any) -> None:
-        """Turn the sounds on."""
-        self.hass.async_create_task(self.device.set_time(datetime.now()))
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Sync time and enable."""
+        self.hass.async_create_task(
+            self.device.set_time(datetime.datetime.now())
+        )
         self._attr_is_on = True
 
-    def turn_off(self, **kwargs: Any) -> None:
-        """Turn the sounds off."""
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Disable time sync."""
         self.device.sync_time = False
         self._attr_is_on = False

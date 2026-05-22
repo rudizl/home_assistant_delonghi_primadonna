@@ -60,6 +60,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         await hass.data[DOMAIN][entry.unique_id].disconnect()
         hass.data[DOMAIN].pop(entry.unique_id)
+        # Unregister service only when last instance is removed
+        if not hass.data[DOMAIN]:
+            hass.services.async_remove(DOMAIN, BEVERAGE_SERVICE_NAME)
     _LOGGER.debug('Unload %s', entry.unique_id)
     return unload_ok
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

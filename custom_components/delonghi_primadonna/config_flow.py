@@ -168,7 +168,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 ),
             )
 
-        await self.hass.config_entries.async_update_entry(
+        self.hass.config_entries.async_update_entry(
             self.config_entry,
             data=user_input,
         )

@@ -212,7 +212,7 @@ DEVICE_NOTIFICATION = {
         NotificationType.STATUS, 'GroundsContainerFull'
     ),
     str(bytearray(COFFEE_GROUNDS_CONTAINER_CLEAN)): BeverageNotify(
-        NotificationType.STATUS, 'GroundsContainerFull'
+        NotificationType.STATUS, 'GroundsContainerClean'
     ),
     str(bytearray(START_COFFEE)): BeverageNotify(
         NotificationType.STATUS, 'START_COFFEE'
@@ -375,19 +375,13 @@ class DelongiPrimadonna:
             .replace("'", ']')
         )
 
-        if str(bytearray(value)) in DEVICE_NOTIFICATION:
-            notification_message = DEVICE_NOTIFICATION.get(
-                str(bytearray(value))
-            ).description
-            event_data.setdefault(
-                'type', DEVICE_NOTIFICATION.get(str(bytearray(value))).kind
-            )
-            event_data.setdefault(
-                'description',
-                DEVICE_NOTIFICATION.get(str(bytearray(value))).description,
-            )
+        notification = DEVICE_NOTIFICATION.get(str(bytearray(value)))
+        if notification is not None:
+            notification_message = notification.description
+            event_data.setdefault('type', notification.kind)
+            event_data.setdefault('description', notification.description)
             # Update power state when machine turns off
-            if event_data.get('description') == 'DeviceOFF':
+            if notification.description == 'DeviceOFF':
                 self.switches.is_on = False
         self._hass.bus.async_fire(f'{DOMAIN}_event', event_data)
 
@@ -617,10 +611,10 @@ class DelongiPrimadonna:
             except BleakError as error:
                 self.connected = False
                 _LOGGER.warning('BleakError: %s', error)
-            except asyncio.exceptions.TimeoutError as error:
+            except asyncio.TimeoutError as error:
                 self.connected = False
                 _LOGGER.info('TimeoutError: %s at device connection', error)
-            except asyncio.exceptions.CancelledError as error:
+            except asyncio.CancelledError as error:
                 self.connected = False
                 _LOGGER.warning('CancelledError: %s', error)
 
@@ -690,7 +684,7 @@ class DelongiPrimadonna:
                             timeout=10,
                         )
                     except asyncio.TimeoutError:
-                        _LOGGER.debug(
+                        _LOGGER.warning(
                             'Timeout waiting for response to command: %s',
                             hexlify(bytearray(message_to_send), " ")
                         )
