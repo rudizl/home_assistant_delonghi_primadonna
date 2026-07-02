@@ -11,7 +11,9 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import device_registry as dr
 
 from .const import BEVERAGE_SERVICE_NAME, DOMAIN
+from .coordinator import DelonghiCoordinator
 from .device import AvailableBeverage, BeverageEntityFeature, DelongiPrimadonna
+from .model import get_machine_models
 
 PLATFORMS: list[str] = [
     Platform.IMAGE,
@@ -32,14 +34,21 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up from a config entry"""
     hass.data.setdefault(DOMAIN, {})
+    # Preload the machine models JSON in the executor so the device
+    # constructor never does blocking file I/O in the event loop.
+    await hass.async_add_executor_job(get_machine_models)
     delonghi_device = DelongiPrimadonna(entry.data, hass)
+    coordinator = DelonghiCoordinator(hass, delonghi_device)
+    delonghi_device.coordinator = coordinator
     hass.data[DOMAIN][entry.unique_id] = delonghi_device
     _LOGGER.debug('Device id %s', entry.unique_id)
     _LOGGER.debug("Device data %s", entry.data)
 
     async def delayed_init():
+        # Give the bluetooth proxies time to discover the device
+        # after a Home Assistant start before the first connection.
         await asyncio.sleep(30)
-        await delonghi_device.get_device_name()
+        await coordinator.async_refresh()
 
     # Background task is cancelled automatically when the entry is
     # unloaded, so it can no longer touch a removed device.

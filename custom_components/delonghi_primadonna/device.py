@@ -221,6 +221,11 @@ class DelongiPrimadonna:
     def __init__(self, config: dict, hass: HomeAssistant) -> None:
         """Initialize device"""
         self._device_status = None
+        # Set by the coordinator; called on every state change coming
+        # from a BLE notification so entities update instantly.
+        self.on_state_update = None
+        # Backreference set in async_setup_entry; used by base_entity.
+        self.coordinator = None
         self._client = None
         self._hass = hass
         self._device = None
@@ -484,6 +489,8 @@ class DelongiPrimadonna:
                 sender
             )
             await self._event_trigger(value)
+            if self.on_state_update is not None:
+                self.on_state_update()
 
         self._device_status = hex_value
 

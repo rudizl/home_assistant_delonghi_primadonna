@@ -76,8 +76,6 @@ async def async_setup_entry(
         ]
     )
 
-    # Trigger initial statistics read; update_statistics is throttled.
-    hass.async_create_task(delongh_device.update_statistics())
     return True
 
 
@@ -241,8 +239,3 @@ class DelongiPrimadonnaStatisticsSensor(
         return self.device.statistics.get(
             self._param_id, self._restored_value
         )
-
-    async def async_update(self) -> None:
-        """Fetch new state data for the sensor (throttled centrally)."""
-        if self.device.connected and self.device.switches.is_on:
-            self.hass.async_create_task(self.device.update_statistics())

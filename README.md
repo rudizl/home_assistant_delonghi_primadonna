@@ -12,6 +12,10 @@ This is a fork of [JoelyMoley/home_assistant_delonghi_primadonna](https://github
 
 ### Fixes and improvements in this fork
 
+- **Improvements (2026.7.2.1)**:
+  - Added a `DataUpdateCoordinator`: one central 60 s polling loop replaces the previous per-entity polling (device tracker + every statistics sensor triggering its own update)
+  - BLE notifications now push state changes to all entities instantly instead of waiting for the next Home Assistant poll cycle
+  - The machine models JSON is preloaded in an executor job, so the device constructor no longer performs blocking file I/O in the event loop
 - **Bug fixes (2026.7.2)**:
   - Fixed cascading `GATT Error 133` warnings: a failed read/write in `get_device_name` left a stale BLE client in place, so every subsequent poll wrote to a dead connection; the client is now reset on any error and a fresh connection is established. Repeated connection failures are logged at debug level (warning only on the connected → disconnected transition)
   - Fixed crash in the BLE notify callback when a profile response (0xA4) failed to parse (`list.items()` AttributeError)
