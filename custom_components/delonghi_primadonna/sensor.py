@@ -1,7 +1,5 @@
 """Sensor entities for Delonghi Primadonna."""
 
-from typing import Any
-
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -14,9 +12,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .base_entity import DelonghiDeviceEntity
-from .const import DOMAIN
-from .device import NOZZLE_STATE, DelongiPrimadonna
-from .machine_switch import MachineSwitch
+from .const import DOMAIN, NOZZLE_STATE
+from .device import DelongiPrimadonna
+
+RESTORE_SKIP_STATES = (None, '', 'unknown', 'unavailable')
 
 
 async def async_setup_entry(
@@ -74,19 +73,10 @@ async def async_setup_entry(
                 108,
                 'Filter Replacements',
                 icon='mdi:filter'),
-            # Optional additional sensors (uncomment if needed):
-            # DelongiPrimadonnaStatisticsSensor(
-            #     delongh_device, hass, 'total_tea', 3025, 'Total Tea'),
-            # DelongiPrimadonnaStatisticsSensor(
-            #     delongh_device, hass, 'total_choco', 3021, 'Total Choco'),
-            # DelongiPrimadonnaStatisticsSensor(
-            #     delongh_device, hass,
-            #     'additional_coffee', 3017, 'Additional Coffee'),
         ]
     )
 
-    # Trigger initial statistics read (Chunk 1 and Chunk 2)
-    # using async_create_task. We use update_statistics to throttle.
+    # Trigger initial statistics read; update_statistics is throttled.
     hass.async_create_task(delongh_device.update_statistics())
     return True
 
@@ -105,24 +95,32 @@ class DelongiPrimadonnaNozzleSensor(
 
     _attr_options = list(NOZZLE_STATE.values())
 
+    def __init__(self, delongh_device, hass):
+        super().__init__(delongh_device, hass)
+        self._restored_value = None
+
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
-            self._attr_native_value = last_state.state
+        last_state = await self.async_get_last_state()
+        if (
+            last_state is not None
+            and last_state.state in self._attr_options
+        ):
+            self._restored_value = last_state.state
 
     @property
     def native_value(self):
-        return self.device.steam_nozzle
-
-    @property
-    def entity_category(self) -> EntityCategory:
-        """Return the category of the entity."""
-        return EntityCategory.DIAGNOSTIC
+        # Fall back to the restored value until the device reports a
+        # real nozzle state after a Home Assistant restart.
+        current = self.device.steam_nozzle
+        if current == NOZZLE_STATE[-1] and self._restored_value:
+            return self._restored_value
+        return current
 
     @property
     def icon(self):
         result = 'mdi:coffee'
-        if self.device.steam_nozzle == "milk_frother":
+        if self.native_value == 'milk_frother':
             result = 'mdi:coffee-outline'
         return result
 
@@ -136,25 +134,28 @@ class DelongiPrimadonnaStatusSensor(
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = 'device_status'
+    _attr_icon = 'mdi:thumb-up-outline'
+
+    def __init__(self, delongh_device, hass):
+        super().__init__(delongh_device, hass)
+        self._restored_value = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
-            self._attr_native_value = last_state.state
+        last_state = await self.async_get_last_state()
+        if (
+            last_state is not None
+            and last_state.state not in RESTORE_SKIP_STATES
+        ):
+            self._restored_value = last_state.state
 
     @property
     def native_value(self):
+        # Until the first BLE update after a restart, the device object
+        # holds a default status; show the restored value instead.
+        if not self.device.connected and self._restored_value:
+            return self._restored_value
         return self.device.status
-
-    @property
-    def entity_category(self) -> EntityCategory:
-        """Return the category of the entity."""
-        return EntityCategory.DIAGNOSTIC
-
-    @property
-    def icon(self):
-        result = 'mdi:thumb-up-outline'
-        return result
 
 
 class DelongiPrimadonnaSwitchesSensor(
@@ -165,21 +166,26 @@ class DelongiPrimadonnaSwitchesSensor(
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = 'switches'
 
+    def __init__(self, delongh_device, hass):
+        super().__init__(delongh_device, hass)
+        self._restored_value = None
+
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
-            self._attr_native_value = last_state.state
+        last_state = await self.async_get_last_state()
+        if (
+            last_state is not None
+            and last_state.state not in RESTORE_SKIP_STATES
+        ):
+            self._restored_value = last_state.state
 
     @property
     def native_value(self):
         if not self.device.active_switches:
+            if not self.device.connected and self._restored_value:
+                return self._restored_value
             return 'none'
         return ', '.join(s.value for s in self.device.active_switches)
-
-    @property
-    def entity_category(self) -> EntityCategory:
-        """Return the category of the entity."""
-        return EntityCategory.DIAGNOSTIC
 
 
 class DelongiPrimadonnaStatisticsSensor(
@@ -191,30 +197,6 @@ class DelongiPrimadonnaStatisticsSensor(
 
     _attr_device_class = None
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
-
-    async def async_added_to_hass(self) -> None:
-        """Handle entity which will be added."""
-        await super().async_added_to_hass()
-
-        # Restore last known state as a numeric value to maintain type
-        # consistency
-        last_state = await self.async_get_last_state()
-        if last_state is None:
-            return
-
-        value = last_state.state
-        # Skip non-usable states
-        if value in (None, "", "unknown", "unavailable"):
-            return
-
-        try:
-            numeric_value = float(value)
-        except (TypeError, ValueError):
-            # Skip restoration if the previous value cannot be parsed as a
-            # number
-            return
-
-        self._attr_native_value = numeric_value
 
     def __init__(
         self,
@@ -229,32 +211,38 @@ class DelongiPrimadonnaStatisticsSensor(
         """Initialize the sensor."""
         super().__init__(device, hass)
         self._param_id = param_id
+        self._restored_value = None
         self._attr_name = name
         self._attr_unique_id = f"{device.mac}_{sensor_type}"
         self._attr_translation_key = sensor_type
         self._attr_native_unit_of_measurement = native_unit_of_measurement
         self._attr_icon = icon
 
+    async def async_added_to_hass(self) -> None:
+        """Restore the last known value as a fallback after restart."""
+        await super().async_added_to_hass()
+
+        last_state = await self.async_get_last_state()
+        if last_state is None:
+            return
+
+        value = last_state.state
+        if value in RESTORE_SKIP_STATES:
+            return
+
+        try:
+            self._restored_value = float(value)
+        except (TypeError, ValueError):
+            return
+
     @property
     def native_value(self):
-        """Return the current value from the statistics dictionary."""
-        return self.device.statistics.get(self._param_id)
-
-    @property
-    def icon(self):
-        """Return the icon of the sensor."""
-        return self._attr_icon
+        """Return the value from statistics, or the restored fallback."""
+        return self.device.statistics.get(
+            self._param_id, self._restored_value
+        )
 
     async def async_update(self) -> None:
-        """Fetch new state data for the sensor."""
-        # Simple update logic: request stats every update cycle
-        # In a real scenario you might want to throttle this
+        """Fetch new state data for the sensor (throttled centrally)."""
         if self.device.connected and self.device.switches.is_on:
-            # Refresh stats around our parameter ID
-            # Requesting chunk of 10 starting from base 100 for now
-            # as that covers most counters
-            # We trigger it, but device.py handles the async
-            # notification response.
-            # async_update here is to trigger the REQUEST via HA loop
-            # Use centralized throttled update
             self.hass.async_create_task(self.device.update_statistics())

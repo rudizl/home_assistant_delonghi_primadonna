@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-try:
-    from enum import StrEnum
-except ImportError:  # pragma: no cover - fallback for older Home Assistant
-    from homeassistant.backports.enum import StrEnum
+from enum import StrEnum
 
 from typing import Any
 

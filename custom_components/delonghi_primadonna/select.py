@@ -1,7 +1,6 @@
 """Select entities for Delonghi Primadonna."""
 
 import logging
-from typing import Any
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
@@ -11,7 +10,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .base_entity import DelonghiDeviceEntity
-from .const import AVAILABLE_PROFILES, DOMAIN, POWER_OFF_OPTIONS
+from .const import DOMAIN, POWER_OFF_OPTIONS
 from .device import AvailableBeverage, BeverageEntityFeature, DelongiPrimadonna
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,7 +49,10 @@ class ProfileSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
+        if (
+            (last_state := await self.async_get_last_state()) is not None
+            and last_state.state in self.options
+        ):
             self._attr_current_option = last_state.state
 
     @property
@@ -58,22 +60,20 @@ class ProfileSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
         """Return a set of selectable options."""
         return self.device.profiles
 
-    @property
-    def entity_category(self, **kwargs: Any) -> None:
-        """Return the category of the entity."""
-        return EntityCategory.CONFIG
-
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
         profile_id = next(
             (
                 pid
-                for pid, name in AVAILABLE_PROFILES.items()
+                for pid, name in self.device.profiles_map.items()
                 if name == option
             ),
             None,
         )
         _LOGGER.debug("Select profile '%s' id=%s", option, profile_id)
+        if profile_id is None:
+            _LOGGER.warning("Unknown profile '%s', command not sent", option)
+            return
         self.hass.async_create_task(self.device.select_profile(profile_id))
         self._attr_current_option = option
 
@@ -90,7 +90,10 @@ class BeverageSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
+        if (
+            (last_state := await self.async_get_last_state()) is not None
+            and last_state.state in self._attr_options
+        ):
             self._attr_current_option = last_state.state
 
     async def async_select_option(self, option: str) -> None:
@@ -105,15 +108,14 @@ class EnergySaveModeSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
     _attr_current_option = list(POWER_OFF_OPTIONS.keys())[3]
     _attr_translation_key = 'energy_save_mode'
     _attr_icon = 'mdi:power-plug-off'
-
-    @property
-    def entity_category(self, **kwargs: Any) -> None:
-        """Return the category of the entity."""
-        return EntityCategory.CONFIG
+    _attr_entity_category = EntityCategory.CONFIG
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
+        if (
+            (last_state := await self.async_get_last_state()) is not None
+            and last_state.state in self._attr_options
+        ):
             self._attr_current_option = last_state.state
 
     async def async_select_option(self, option: str) -> None:
@@ -132,16 +134,15 @@ class WaterHardnessSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
     _attr_current_option = 'Soft'
     _attr_translation_key = 'water_hardness'
     _attr_icon = 'mdi:water'
+    _attr_entity_category = EntityCategory.CONFIG
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
+        if (
+            (last_state := await self.async_get_last_state()) is not None
+            and last_state.state in self._attr_options
+        ):
             self._attr_current_option = last_state.state
-
-    @property
-    def entity_category(self, **kwargs: Any) -> None:
-        """Return the category of the entity."""
-        return EntityCategory.CONFIG
 
     async def async_select_option(self, option: str) -> None:
         """Select water hardness action"""
@@ -162,16 +163,15 @@ class WaterTemperatureSelect(
     _attr_translation_key = 'water_temperature'
     _attr_icon = 'mdi:thermometer'
     _attr_supported_features: BeverageEntityFeature = BeverageEntityFeature(1)
+    _attr_entity_category = EntityCategory.CONFIG
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
+        if (
+            (last_state := await self.async_get_last_state()) is not None
+            and last_state.state in self._attr_options
+        ):
             self._attr_current_option = last_state.state
-
-    @property
-    def entity_category(self, **kwargs: Any) -> None:
-        """Return the category of the entity."""
-        return EntityCategory.CONFIG
 
     async def async_select_option(self, option: str) -> None:
         """Select water temperature action"""

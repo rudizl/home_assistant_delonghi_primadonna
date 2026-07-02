@@ -44,7 +44,8 @@ class DelongiPrimadonnaEnabledSensor(
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (last_state := await self.async_get_last_state()) is not None:
+        last_state = await self.async_get_last_state()
+        if last_state is not None and last_state.state in ('on', 'off'):
             self._attr_is_on = last_state.state == 'on'
             self.device.switches.is_on = self._attr_is_on
 
@@ -56,10 +57,6 @@ class DelongiPrimadonnaEnabledSensor(
         if self.device.connected:
             return 'mdi:coffee-maker-check-outline'
         return 'mdi:coffee-maker-outline'
-
-    @property
-    def native_value(self):
-        return self.device.switches.is_on
 
     @property
     def is_on(self) -> bool:
@@ -81,10 +78,6 @@ class DelongiPrimadonnaDescaleSensor(
         await super().async_added_to_hass()
         if (last_state := await self.async_get_last_state()) is not None:
             self._attr_is_on = last_state.state == 'on'
-
-    @property
-    def native_value(self):
-        return self.device.service
 
     @property
     def is_on(self) -> bool:
@@ -113,10 +106,6 @@ class DelongiPrimadonnaFilterSensor(
         await super().async_added_to_hass()
         if (last_state := await self.async_get_last_state()) is not None:
             self._attr_is_on = last_state.state == 'on'
-
-    @property
-    def native_value(self):
-        return self.device.service
 
     @property
     def is_on(self) -> bool:

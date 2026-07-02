@@ -12,6 +12,22 @@ This is a fork of [JoelyMoley/home_assistant_delonghi_primadonna](https://github
 
 ### Fixes and improvements in this fork
 
+- **Bug fixes (2026.7.2)**:
+  - Fixed crash in the BLE notify callback when a profile response (0xA4) failed to parse (`list.items()` AttributeError)
+  - Fixed the options flow never appearing: `async_get_options_flow` is now a static method on `ConfigFlow`; removed the deprecated `OptionsFlow.__init__(config_entry)` assignment (removed in HA 2025.12)
+  - MAC address is no longer editable in the options flow — changing it would orphan all entities (it is the unique_id base)
+  - Fixed state restore after HA restart: Nozzle, Status, Switches and all statistics sensors restored into `_attr_native_value`, which was shadowed by their `native_value` properties, so restored values were never shown; they now serve as a proper fallback until fresh BLE data arrives
+  - Profile names are now stored per device instance instead of mutating the global `AVAILABLE_PROFILES` constant (fixes profile clashes with multiple machines)
+  - The `make_beverage` service is now registered once and resolves the target machine via `device_id` (previously each config entry overwrote the service to always target the last machine)
+  - `send_command` now catches all connection errors, not only `BleakError` — a `TimeoutError` from the connect phase used to escape as an unhandled task exception and skip the retry loop
+  - Guarded `ProfileSelect` against sending `select_profile(None)` when an unknown profile name is selected
+  - The 30-second delayed init is now a managed background task, cancelled automatically when the entry unloads
+  - Select entities no longer restore `unknown`/`unavailable` or out-of-options states
+  - `device_tracker.source_type` uses the `SourceType` enum instead of a deprecated string
+  - Removed dead `native_value` properties from binary sensors, duplicate `entity_category` properties, the `homeassistant.backports.enum` fallback and unused empty constants
+  - Switch entities inherit `SwitchEntity` instead of the generic `ToggleEntity`
+  - `manifest.json`: added `integration_type: device`, corrected `iot_class` to `local_push`; `hacs.json` minimum HA raised to 2024.6.0 to match the APIs actually used
+  - Normalised line endings to LF and added `.gitattributes`
 - **BLE Bluetooth proxy support** — Fixed connection via Bluetooth proxies (Shelly, ESPHome). Changed `connectable=True` to `connectable=False` and replaced `BleakClient.connect()` with `establish_connection()` from `bleak_retry_connector` for reliable proxy-based connections.
 - **Prevent statistics timeout in standby** — Statistics requests are now skipped when the machine is off/in standby, eliminating timeout warnings in the logs.
 - **Skip statistics update when machine is off** — The HA sensor update cycle no longer triggers statistics polling when the machine is powered off.

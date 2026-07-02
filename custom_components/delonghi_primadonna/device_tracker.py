@@ -1,6 +1,6 @@
 """Device tracker entity for Delonghi Primadonna."""
 
-from homeassistant.components.device_tracker import ScannerEntity
+from homeassistant.components.device_tracker import ScannerEntity, SourceType
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -46,9 +46,9 @@ class DelongiPrimadonnaDeviceTracker(DelonghiDeviceEntity, ScannerEntity):
         return self.device.hostname
 
     @property
-    def source_type(self) -> str:
-        """Return the source type, eg gps or router, of the device."""
-        return 'router'
+    def source_type(self) -> SourceType:
+        """Return the source type of the device."""
+        return SourceType.ROUTER
 
     @property
     def is_connected(self) -> bool:

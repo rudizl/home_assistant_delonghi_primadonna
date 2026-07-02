@@ -4,10 +4,10 @@ import datetime
 import time
 from typing import Any
 
+from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import ToggleEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
@@ -50,7 +50,7 @@ async def async_setup_entry(
     return True
 
 
-class DelongiPrimadonnaPowerSwitch(DelonghiDeviceEntity, ToggleEntity):
+class DelongiPrimadonnaPowerSwitch(DelonghiDeviceEntity, SwitchEntity):
     """Switch to turn the coffee machine on or off."""
 
     _attr_icon = 'mdi:power'
@@ -94,7 +94,7 @@ class DelongiPrimadonnaPowerSwitch(DelonghiDeviceEntity, ToggleEntity):
 
 
 class DelongiPrimadonnaCupLightSwitch(
-    DelonghiDeviceEntity, ToggleEntity, RestoreEntity
+    DelonghiDeviceEntity, SwitchEntity, RestoreEntity
 ):
     """This switch enable/disable the cup light"""
 
@@ -124,7 +124,7 @@ class DelongiPrimadonnaCupLightSwitch(
 
 
 class DelongiPrimadonnaNotificationSwitch(
-    DelonghiDeviceEntity, ToggleEntity, RestoreEntity
+    DelonghiDeviceEntity, SwitchEntity, RestoreEntity
 ):
     """This switch enable HA side bar notification
        on device status change used for debug purposes
@@ -159,7 +159,7 @@ class DelongiPrimadonnaNotificationSwitch(
 
 
 class DelongiPrimadonnaPowerSaveSwitch(
-    DelonghiDeviceEntity, ToggleEntity, RestoreEntity
+    DelonghiDeviceEntity, SwitchEntity, RestoreEntity
 ):
 
     _attr_is_on = False
@@ -188,7 +188,7 @@ class DelongiPrimadonnaPowerSaveSwitch(
 
 
 class DelongiPrimadonnaSoundsSwitch(
-    DelonghiDeviceEntity, ToggleEntity, RestoreEntity
+    DelonghiDeviceEntity, SwitchEntity, RestoreEntity
 ):
 
     _attr_is_on = False
@@ -217,7 +217,7 @@ class DelongiPrimadonnaSoundsSwitch(
 
 
 class DelongiPrimadonnaTimeSyncSwitch(
-        DelonghiDeviceEntity, ToggleEntity, RestoreEntity
+        DelonghiDeviceEntity, SwitchEntity, RestoreEntity
 ):
     _attr_is_on = False
     _attr_icon = 'mdi:clock-time-eight-outline'

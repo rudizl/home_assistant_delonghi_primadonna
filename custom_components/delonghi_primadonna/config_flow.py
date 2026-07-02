@@ -10,6 +10,7 @@ import voluptuous
 from homeassistant import config_entries
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.const import CONF_MAC, CONF_MODEL, CONF_NAME
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (SelectOptionDict, SelectSelector,
                                             SelectSelectorConfig,
@@ -51,6 +52,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self):
         self._schema = STEP_USER_DATA_SCHEMA
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> OptionsFlowHandler:
+        """Return the options flow handler."""
+        return OptionsFlowHandler()
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
@@ -132,11 +141,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
-    """Handle options for existing entry."""
+    """Handle options for existing entry.
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
+    ``self.config_entry`` is provided by the base class; assigning it
+    explicitly is deprecated and removed in recent Home Assistant.
+    The MAC address is intentionally not editable: it is the entry
+    unique_id and the base for all entity unique_ids, so changing it
+    would orphan every entity.
+    """
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -153,9 +165,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                             CONF_NAME, default=data.get(CONF_NAME)
                         ): str,
                         voluptuous.Required(
-                            CONF_MAC, default=data.get(CONF_MAC)
-                        ): str,
-                        voluptuous.Required(
                             CONF_MODEL, default=data.get(CONF_MODEL)
                         ): SelectSelector(
                             SelectSelectorConfig(
@@ -170,17 +179,12 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         self.hass.config_entries.async_update_entry(
             self.config_entry,
-            data=user_input,
+            data={
+                **self.config_entry.data,
+                **user_input,
+            },
         )
         self.hass.async_create_task(
             self.hass.config_entries.async_reload(self.config_entry.entry_id)
         )
         return self.async_create_entry(title="", data={})
-
-
-async def async_get_options_flow(
-    config_entry: config_entries.ConfigEntry,
-) -> OptionsFlowHandler:
-    """Return the options flow handler."""
-
-    return OptionsFlowHandler(config_entry)

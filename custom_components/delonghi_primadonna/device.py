@@ -2,16 +2,11 @@
 import asyncio
 import copy
 
-try:
-    from enum import StrEnum
-except ImportError:  # pragma: no cover - fallback for older Home Assistant
-    from homeassistant.backports.enum import StrEnum
-
 import logging
 import uuid
 from binascii import crc_hqx, hexlify
 from datetime import datetime
-from enum import IntFlag
+from enum import IntFlag, StrEnum
 
 from bleak import BleakClient
 from bleak_retry_connector import establish_connection
@@ -258,12 +253,13 @@ class DelongiPrimadonna:
             if machine and machine.nProfiles
             else len(AVAILABLE_PROFILES)
         )
-        for pid in range(1, self._n_profiles + 1):
-            AVAILABLE_PROFILES.setdefault(pid, f"Profile {pid}")
-        for pid in list(AVAILABLE_PROFILES):
-            if pid > self._n_profiles:
-                AVAILABLE_PROFILES.pop(pid)
-        self.profiles = list(AVAILABLE_PROFILES.values())
+        # Per-instance profile mapping. AVAILABLE_PROFILES stays a
+        # read-only default so multiple machines don't clash.
+        self.profiles_map: dict[int, str] = {
+            pid: AVAILABLE_PROFILES.get(pid, f"Profile {pid}")
+            for pid in range(1, self._n_profiles + 1)
+        }
+        self.profiles = list(self.profiles_map.values())
         self._profiles_loaded = False
 
     async def disconnect(self):
@@ -366,14 +362,10 @@ class DelongiPrimadonna:
         Trigger event
         :param value: event value
         """
-        event_data = {'data': str(hexlify(value, ' '))}
+        hex_str = hexlify(value, ' ').decode()
+        event_data = {'data': hex_str}
 
-        notification_message = (
-            str(hexlify(value, ' '))
-            .replace(' ', ', 0x')
-            .replace("b'", '[0x')
-            .replace("'", ']')
-        )
+        notification_message = '[0x' + hex_str.replace(' ', ', 0x') + ']'
 
         notification = DEVICE_NOTIFICATION.get(str(bytearray(value)))
         if notification is not None:
@@ -440,7 +432,7 @@ class DelongiPrimadonna:
             if monitor_data:
                 self._handle_monitor_data(monitor_data, answer_id, value)
         elif answer_id == 0xA4:
-            parsed = []
+            parsed: dict[int, str] = {}
             try:
                 parsed = self._parse_profile_response(
                     list(value)
@@ -448,12 +440,13 @@ class DelongiPrimadonna:
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning("Failed to parse profile response: %s", err)
             for pid, name in parsed.items():
-                AVAILABLE_PROFILES[pid] = name
+                if name:
+                    self.profiles_map[pid] = name
             _LOGGER.debug(
                 "Available profiles: %s",
-                AVAILABLE_PROFILES
+                self.profiles_map
             )
-            self.profiles = list(AVAILABLE_PROFILES.values())
+            self.profiles = list(self.profiles_map.values())
         elif answer_id == 0xA9:
             profile_id = value[4] if len(value) > 4 else None
             status = value[5] if len(value) > 5 else None
@@ -691,12 +684,17 @@ class DelongiPrimadonna:
                     finally:
                         self._response_event = None
                     return
-                except BleakError as error:
+                except Exception as error:  # noqa: BLE001
+                    # _connect re-raises its last error which is not
+                    # always a BleakError (e.g. asyncio.TimeoutError),
+                    # so catch broadly to keep the retry loop alive and
+                    # avoid unhandled exceptions in background tasks.
                     self.connected = False
                     self._client = None
                     _LOGGER.warning(
-                        'BleakError: %s (attempt %d)',
+                        'Send command failed: %s (%s, attempt %d)',
                         error,
+                        type(error).__name__,
                         attempt + 1
                     )
                     await asyncio.sleep(2)
