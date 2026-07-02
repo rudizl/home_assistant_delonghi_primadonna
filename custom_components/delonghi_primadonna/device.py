@@ -262,6 +262,22 @@ class DelongiPrimadonna:
         self.profiles = list(self.profiles_map.values())
         self._profiles_loaded = False
 
+    async def _reset_client(self):
+        """Drop a (possibly stale) BLE client so the next attempt
+        establishes a fresh connection. GATT errors (e.g. status 133)
+        usually mean the underlying connection is dead even if the
+        client object still reports connected. Callers must hold
+        ``self._lock``.
+        """
+        client = self._client
+        self._client = None
+        self.connected = False
+        if client is not None:
+            try:
+                await asyncio.wait_for(client.disconnect(), timeout=5)
+            except Exception:  # noqa: BLE001
+                pass
+
     async def disconnect(self):
         """Disconnect from the device."""
         _LOGGER.info("Disconnect from %s", self.mac)
@@ -598,18 +614,23 @@ class DelongiPrimadonna:
                     uuid.UUID(CONTROLL_CHARACTERISTIC), bytearray(DEBUG)
                 )
                 self.connected = True
-            except BleakDBusError as error:
-                self.connected = False
-                _LOGGER.warning('BleakDBusError: %s', error)
-            except BleakError as error:
-                self.connected = False
-                _LOGGER.warning('BleakError: %s', error)
-            except asyncio.TimeoutError as error:
-                self.connected = False
-                _LOGGER.info('TimeoutError: %s at device connection', error)
-            except asyncio.CancelledError as error:
-                self.connected = False
-                _LOGGER.warning('CancelledError: %s', error)
+            except (
+                BleakDBusError,
+                BleakError,
+                asyncio.TimeoutError,
+            ) as error:
+                # Warn only on the connected -> disconnected transition,
+                # log repeats at debug level to avoid flooding the log.
+                log = _LOGGER.warning if self.connected else _LOGGER.debug
+                log(
+                    '%s: %s at device connection',
+                    type(error).__name__,
+                    error,
+                )
+                await self._reset_client()
+            except asyncio.CancelledError:
+                await self._reset_client()
+                raise
 
         if self.connected and not self._profiles_loaded:
             command = BYTES_LOAD_PROFILES.copy()
@@ -689,8 +710,10 @@ class DelongiPrimadonna:
                     # always a BleakError (e.g. asyncio.TimeoutError),
                     # so catch broadly to keep the retry loop alive and
                     # avoid unhandled exceptions in background tasks.
-                    self.connected = False
-                    self._client = None
+                    # Reset the client: GATT errors like status 133
+                    # mean the connection is dead even if the client
+                    # object still reports connected.
+                    await self._reset_client()
                     _LOGGER.warning(
                         'Send command failed: %s (%s, attempt %d)',
                         error,

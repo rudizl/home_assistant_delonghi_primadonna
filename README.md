@@ -13,6 +13,7 @@ This is a fork of [JoelyMoley/home_assistant_delonghi_primadonna](https://github
 ### Fixes and improvements in this fork
 
 - **Bug fixes (2026.7.2)**:
+  - Fixed cascading `GATT Error 133` warnings: a failed read/write in `get_device_name` left a stale BLE client in place, so every subsequent poll wrote to a dead connection; the client is now reset on any error and a fresh connection is established. Repeated connection failures are logged at debug level (warning only on the connected → disconnected transition)
   - Fixed crash in the BLE notify callback when a profile response (0xA4) failed to parse (`list.items()` AttributeError)
   - Fixed the options flow never appearing: `async_get_options_flow` is now a static method on `ConfigFlow`; removed the deprecated `OptionsFlow.__init__(config_entry)` assignment (removed in HA 2025.12)
   - MAC address is no longer editable in the options flow — changing it would orphan all entities (it is the unique_id base)
