@@ -49,9 +49,14 @@ class ProfileSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
+        # Do NOT validate against self.options here: at startup the
+        # options are the default placeholders and the real profile
+        # names arrive from the machine ~30s later, so a saved name
+        # like 'Rudi' would be wrongly rejected (and the select would
+        # show 'unknown' once the real names load).
         if (
             (last_state := await self.async_get_last_state()) is not None
-            and last_state.state in self.options
+            and last_state.state not in ('', 'unknown', 'unavailable')
         ):
             self._attr_current_option = last_state.state
 

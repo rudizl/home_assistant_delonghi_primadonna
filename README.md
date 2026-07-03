@@ -12,6 +12,8 @@ This is a fork of [JoelyMoley/home_assistant_delonghi_primadonna](https://github
 
 ### Fixes and improvements in this fork
 
+- **Bug fixes (2026.7.3.2)**:
+  - Fixed the profile select resetting to unknown after a restart: the restored profile name was validated against the placeholder options before the real names had loaded from the machine
 - **Improvements (2026.7.3.1)**:
   - Added full Bulgarian (bg) translation, including all machine states, alarms, switches and statistics sensors
 - **Improvements (2026.7.3)**:
