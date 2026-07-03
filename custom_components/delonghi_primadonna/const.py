@@ -51,6 +51,26 @@ NOZZLE_STATE = {
 # Skipable maintanence states
 SERVICE_STATE = {0: 'OK', 4: 'DESCALING'}
 
+# Machine working states (monitor_data.status byte). Decoded by the
+# community in upstream PRs #235/#238 and verified against live data
+# from a Dinamica Plus (v2 protocol: 0 when off, 7 when on and ready,
+# 2 during the shutdown wash cycle).
+MACHINE_STATUS = {
+    0: 'turned_off',
+    1: 'heating',
+    2: 'washing',
+    3: 'heating',
+    4: 'heating',
+    5: 'ready',  # v1 protocol ready
+    6: 'brewing',
+    7: 'ready',  # v2 protocol ready
+    8: 'rinsing',
+    10: 'preparing',
+    11: 'delivering_hot_water',
+    12: 'cleaning_milk_spout',
+    14: 'descaling',
+}
+
 DEVICE_STATUS = {
     0: "empty_water_tank",
     1: "coffee_waste_container_full",

@@ -12,6 +12,9 @@ This is a fork of [JoelyMoley/home_assistant_delonghi_primadonna](https://github
 
 ### Fixes and improvements in this fork
 
+- **Improvements (2026.7.3)**:
+  - Added the community-decoded `MACHINE_STATUS` map (upstream PRs #235/#238) for the machine state byte: turned_off, heating, washing, ready, brewing, rinsing, preparing, delivering_hot_water, cleaning_milk_spout, descaling. Verified against live Dinamica Plus data (0 = off, 7 = ready on the v2 protocol, 2 = shutdown wash cycle)
+  - The previous mapping showed "Ready" while the machine was actually turned off (status bytes 0/1/5 were lumped together); the default status is now `turned_off` instead of a bogus beans-empty alarm
 - **Improvements (2026.7.2.1)**:
   - Added a `DataUpdateCoordinator`: one central 60 s polling loop replaces the previous per-entity polling (device tracker + every statistics sensor triggering its own update)
   - BLE notifications now push state changes to all entities instantly instead of waiting for the next Home Assistant poll cycle
