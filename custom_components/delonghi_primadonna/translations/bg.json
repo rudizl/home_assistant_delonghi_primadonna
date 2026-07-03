@@ -1,0 +1,193 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Устройството вече е конфигурирано"
+    },
+    "error": {
+      "cannot_connect": "Неуспешно свързване",
+      "invalid_auth": "Невалидна автентикация",
+      "unknown": "Неочаквана грешка"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "mac": "MAC",
+          "name": "Име",
+          "model": "Модел"
+        }
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "profile": {
+        "name": "Профил"
+      },
+      "make_beverage": {
+        "name": "Напитка"
+      },
+      "energy_save_mode": {
+        "name": "Изключване след"
+      },
+      "water_hardness": {
+        "name": "Твърдост на водата"
+      },
+      "water_temperature": {
+        "name": "Температура на водата"
+      }
+    },
+    "button": {
+      "power_on": {
+        "name": "Включване"
+      }
+    },
+    "switch": {
+      "cup_light": {
+        "name": "Осветление на чашата"
+      },
+      "debug_notification": {
+        "name": "Дебъг известия"
+      },
+      "energy_save_mode": {
+        "name": "Енергоспестяващ режим"
+      },
+      "sounds": {
+        "name": "Звуци"
+      }
+    },
+    "sensor": {
+      "nozzle_status": {
+        "name": "Състояние на дюзата",
+        "state": {
+          "unknown": "Неизвестно",
+          "detached": "Свалена",
+          "steam": "Пара",
+          "milk_frother": "Приставка за мляко",
+          "milk_frother_cleaning": "Почистване на приставката за мляко"
+        }
+      },
+      "switches": {
+        "name": "Превключватели",
+        "state": {
+          "none": "Няма",
+          "water_spout": "Чучур за вода",
+          "motor_up": "Мотор горе",
+          "motor_down": "Мотор долу",
+          "coffee_waste_container": "Контейнер за утайка",
+          "water_tank_absent": "Липсва резервоар за вода",
+          "knob": "Копче",
+          "water_level_low": "Ниско ниво на водата",
+          "coffee_jug": "Кана за кафе",
+          "ifd_caraffe": "Кана за мляко",
+          "ciocco_tank": "Резервоар за шоколад",
+          "clean_knob": "Копче за почистване",
+          "door_opened": "Отворена вратичка",
+          "preground_door_opened": "Отворена вратичка за мляно кафе",
+          "unknown_switch": "Неизвестен превключвател"
+        }
+      },
+      "device_status": {
+        "name": "Статус на машината",
+        "state": {
+          "empty_water_tank": "Празен резервоар за вода",
+          "coffee_waste_container_full": "Пълен контейнер за утайка",
+          "descale_alarm": "Аларма за декалциране",
+          "replace_water_filter": "Сменете водния филтър",
+          "coffee_ground_too_fine": "Твърде фино смляно кафе",
+          "coffee_beans_empty": "Няма кафе на зърна",
+          "machine_to_service": "Машината е за сервиз",
+          "coffee_heater_probe_failure": "Повреда в сензора на нагревателя",
+          "too_much_coffee": "Твърде много кафе",
+          "coffee_infuser_motor_not_working": "Моторът на инфузера не работи",
+          "steamer_probe_failure": "Повреда в сензора за пара",
+          "empty_drip_tray": "Изпразнете тавичката за капки",
+          "hydraulic_circuit_problem": "Проблем в хидравличната система",
+          "tank_is_in_position": "Резервоарът е на място",
+          "clean_knob": "Почистете копчето",
+          "coffee_beans_empty_two": "Няма кафе на зърна (втори сензор)",
+          "tank_too_full": "Резервоарът е препълнен",
+          "bean_hopper_absent": "Липсва контейнер за зърна",
+          "grid_presence": "Наличие на решетка",
+          "infuser_sense": "Сензор на инфузера",
+          "not_enough_coffee": "Недостатъчно кафе",
+          "expansion_comm_prob": "Комуникационен проблем с разширението",
+          "expansion_submodules_prob": "Проблем с подмодулите на разширението",
+          "grinding_unit_1_problem": "Проблем с мелачка 1",
+          "grinding_unit_2_problem": "Проблем с мелачка 2",
+          "condense_fan_problem": "Проблем с вентилатора за конденз",
+          "clock_bt_comm_problem": "Проблем с часовника/BT комуникацията",
+          "spi_comm_problem": "Проблем със SPI комуникацията",
+          "unknown_alarm": "Неизвестна аларма",
+          "turned_off": "Изключена",
+          "heating": "Загряване",
+          "washing": "Измиване",
+          "ready": "Готова",
+          "brewing": "Варене",
+          "rinsing": "Изплакване",
+          "preparing": "Приготвяне",
+          "delivering_hot_water": "Подаване на гореща вода",
+          "cleaning_milk_spout": "Почистване на дюзата за мляко",
+          "descaling": "Декалциране"
+        }
+      },
+      "total_coffee": {
+        "name": "Общо кафета"
+      },
+      "total_coffee_with_milk": {
+        "name": "Общо кафета с мляко"
+      },
+      "total_water": {
+        "name": "Общо вода"
+      },
+      "descaling_count": {
+        "name": "Брой декалцирания"
+      },
+      "milk_cleaning_count": {
+        "name": "Почиствания на млечната система"
+      },
+      "filter_replace_count": {
+        "name": "Смени на филтъра"
+      },
+      "total_tea": {
+        "name": "Общо чай"
+      },
+      "total_choco": {
+        "name": "Общо шоколад"
+      },
+      "additional_coffee": {
+        "name": "Допълнително кафе"
+      }
+    }
+  },
+  "services": {
+    "make_beverage": {
+      "name": "Приготви напитка",
+      "description": "Приготвя напитка от списъка по-долу",
+      "fields": {
+        "beverage": {
+          "name": "Напитка",
+          "description": "Напитка за приготвяне"
+        },
+        "entity_id": {
+          "name": "Entity ID",
+          "description": "Entity ID на кафемашината"
+        }
+      }
+    }
+  },
+  "selector": {
+    "beverage": {
+      "options": {
+        "none": "Нищо",
+        "steam": "Пара",
+        "long": "Лонго",
+        "coffee": "Кафе",
+        "dopio": "Допио",
+        "hot_water": "Гореща вода",
+        "espresso": "Еспресо",
+        "americano": "Американо",
+        "espresso2": "Еспресо 2"
+      }
+    }
+  }
+}
