@@ -73,7 +73,7 @@
           "coffee_waste_container_full": "Contenitore fondi pieno",
           "descale_alarm": "Allarme decalcificazione",
           "replace_water_filter": "Sostituire filtro acqua",
-          "coffe_ground_too_fine": "Caffè troppo fine",
+          "coffee_ground_too_fine": "Caffè troppo fine",
           "coffee_beans_empty": "Contenitore chicchi vuoto",
           "machine_to_service": "Macchina da revisionare",
           "coffee_heater_probe_failure": "Guasto sonda riscaldatore caffè",
@@ -97,8 +97,7 @@
           "condense_fan_problem": "Problema ventola condensa",
           "clock_bt_comm_problem": "Problema comunicazione Orologio/BT",
           "spi_comm_problem": "Problema comunicazione SPI",
-          "unknown_alarm": "Allarme sconosciuto",
-          "ignore_alarm": "Allarme ignorato"
+          "unknown_alarm": "Allarme sconosciuto"
         }
       },
       "switches": {

@@ -53,6 +53,12 @@
       },
       "sounds": {
         "name": "Sounds"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "time_sync": {
+        "name": "Time sync"
       }
     },
     "sensor": {

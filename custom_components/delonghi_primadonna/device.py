@@ -1,39 +1,36 @@
 """Delongi primadonna device description"""
 import asyncio
 import copy
-
 import logging
+import time
 import uuid
 from binascii import crc_hqx, hexlify
+from dataclasses import dataclass
 from datetime import datetime
 from enum import IntFlag, StrEnum
 
 from bleak import BleakClient
-from bleak_retry_connector import establish_connection
 from bleak.exc import BleakDBusError, BleakError
+from bleak_retry_connector import establish_connection
 from homeassistant.components import bluetooth
 from homeassistant.const import CONF_MAC, CONF_MODEL, CONF_NAME
 from homeassistant.core import HomeAssistant
-import time
-from dataclasses import dataclass
 
 from .const import (AMERICANO_OFF, AMERICANO_ON, AVAILABLE_PROFILES,
                     BASE_COMMAND, BYTES_AUTOPOWEROFF_COMMAND,
                     BYTES_LOAD_PROFILES, BYTES_POWER, BYTES_POWER_OFF,
-                    BYTES_SWITCH_COMMAND, BYTES_TIME_COMMAND,
-                    BYTES_WATER_HARDNESS_COMMAND,
-                    BYTES_WATER_TEMPERATURE_COMMAND, BYTES_STATISTICS_COMMAND,
-                    COFFE_OFF, COFFE_ON,
+                    BYTES_STATISTICS_COMMAND, BYTES_SWITCH_COMMAND,
+                    BYTES_TIME_COMMAND, BYTES_WATER_HARDNESS_COMMAND,
+                    BYTES_WATER_TEMPERATURE_COMMAND, COFFE_OFF, COFFE_ON,
                     COFFEE_GROUNDS_CONTAINER_CLEAN,
                     COFFEE_GROUNDS_CONTAINER_DETACHED,
                     COFFEE_GROUNDS_CONTAINER_FULL, CONTROLL_CHARACTERISTIC,
                     DEBUG, DEVICE_READY, DEVICE_STATUS, DEVICE_TURNOFF, DOMAIN,
                     DOPPIO_OFF, DOPPIO_ON, ESPRESSO2_OFF, ESPRESSO2_ON,
                     ESPRESSO_OFF, ESPRESSO_ON, HOTWATER_OFF, HOTWATER_ON,
-                    LONG_OFF, LONG_ON, NAME_CHARACTERISTIC, NOZZLE_STATE,
-                    START_COFFEE, STEAM_OFF, STEAM_ON, WATER_SHORTAGE,
-                    WATER_TANK_DETACHED,
-                    MACHINE_STATUS)
+                    LONG_OFF, LONG_ON, MACHINE_STATUS, NAME_CHARACTERISTIC,
+                    NOZZLE_STATE, START_COFFEE, STEAM_OFF, STEAM_ON,
+                    WATER_SHORTAGE, WATER_TANK_DETACHED)
 from .machine_switch import MachineSwitch, parse_switches
 from .model import get_machine_model
 
@@ -242,6 +239,9 @@ class DelongiPrimadonna:
         self.notify = False
         self.steam_nozzle = NOZZLE_STATE[-1]
         self.service = 0
+        # True once a monitor packet was parsed; until then entities
+        # show their restored state instead of the defaults above.
+        self.monitor_received = False
         self.status = MACHINE_STATUS[0]
         self.switches = DeviceSwitches()
         self.active_switches: list[MachineSwitch] = []
@@ -316,7 +316,7 @@ class DelongiPrimadonna:
             try:
                 if self._client is None or not self._client.is_connected:
                     self._device = bluetooth.async_ble_device_from_address(
-                        self._hass, self.mac, connectable=False
+                        self._hass, self.mac, connectable=True
                     )
                     if not self._device:
                         raise BleakError(
@@ -407,7 +407,9 @@ class DelongiPrimadonna:
                 {
                     'message': notification_message,
                     'title': f'{self.name} {answer_id}',
-                    'notification_id': f'{self.mac}_err_{uuid.uuid4()}',
+                    # One notification per answer type: a new packet replaces
+                    # the previous one instead of piling up.
+                    'notification_id': f'{self.mac}_debug_{answer_id}',
                 },
             )
         _LOGGER.info('Event triggered: %s', event_data)
@@ -489,7 +491,9 @@ class DelongiPrimadonna:
                 hex_value,
                 sender
             )
-            await self._event_trigger(value)
+            # Statistics replies are polled data, not machine events.
+            if answer_id != 0xA2:
+                await self._event_trigger(value)
             if self.on_state_update is not None:
                 self.on_state_update()
 
@@ -499,6 +503,7 @@ class DelongiPrimadonna:
         self, monitor_data: MonitorData, answer_id: int, raw_packet: bytes
     ) -> None:
         """Apply parsed monitor data to device state."""
+        self.monitor_received = True
         # Power state
         self.switches.is_on = monitor_data.status > 0
 

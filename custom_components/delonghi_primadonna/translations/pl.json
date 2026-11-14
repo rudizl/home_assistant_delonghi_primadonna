@@ -73,7 +73,7 @@
           "coffee_waste_container_full": "Pojemnik na fusy jest pełny",
           "descale_alarm": "Alarm odkamieniania",
           "replace_water_filter": "Wymień filtr wody",
-          "coffe_ground_too_fine": "Zbyt drobne mielenie kawy",
+          "coffee_ground_too_fine": "Zbyt drobne mielenie kawy",
           "coffee_beans_empty": "Brak kawy ziarnistej",
           "machine_to_service": "Wymagany serwis",
           "coffee_heater_probe_failure": "Awaria sondy grzałki kawy",
@@ -97,8 +97,7 @@
           "condense_fan_problem": "Problem z wentylatorem kondensatora",
           "clock_bt_comm_problem": "Problem z komunikacją zegara/BT",
           "spi_comm_problem": "Problem z komunikacją SPI",
-          "unknown_alarm": "Nieznany alarm",
-          "ignore_alarm": "Zignoruj alarm"
+          "unknown_alarm": "Nieznany alarm"
         }
       },
       "switches": {

@@ -73,7 +73,7 @@
           "coffee_waste_container_full": "Bac à marc plein",
           "descale_alarm": "Alarme détartrage",
           "replace_water_filter": "Remplacer le filtre à eau",
-          "coffe_ground_too_fine": "Mouture trop fine",
+          "coffee_ground_too_fine": "Mouture trop fine",
           "coffee_beans_empty": "Bac à grains vide",
           "machine_to_service": "Entretien machine",
           "coffee_heater_probe_failure": "Panne sonde chauffage café",
@@ -97,8 +97,7 @@
           "condense_fan_problem": "Problème ventilateur condensation",
           "clock_bt_comm_problem": "Problème communication horloge/BT",
           "spi_comm_problem": "Problème communication SPI",
-          "unknown_alarm": "Alarme inconnue",
-          "ignore_alarm": "Alarme ignorée"
+          "unknown_alarm": "Alarme inconnue"
         }
       },
       "switches": {

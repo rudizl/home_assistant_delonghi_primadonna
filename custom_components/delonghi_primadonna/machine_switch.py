@@ -52,8 +52,10 @@ def parse_switches(data: bytes) -> List[MachineSwitch]:
     """Parse switch states from a monitor mode response."""
     if len(data) < 8:
         return []
-    mask = data[5] | (data[7] << 8)
-    if data[7] & 0x08:
+    # Bytes 5 and 6 (little endian), same as parse_monitor_data.
+    # Byte 7 is the low byte of the alarm mask, not a switch byte.
+    mask = data[5] | (data[6] << 8)
+    if data[6] & 0x08:
         mask &= ~(1 << 2)
         mask &= ~(1 << 9)
     result: List[MachineSwitch] = []
