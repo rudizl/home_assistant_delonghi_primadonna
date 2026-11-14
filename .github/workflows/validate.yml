@@ -15,8 +15,13 @@ jobs:
         with:
           category: "integration"
 
+  hassfest:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v6"
+
       - uses: "home-assistant/actions/hassfest@master"
-          
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
