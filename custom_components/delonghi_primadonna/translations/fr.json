@@ -156,10 +156,6 @@
         "beverage": {
           "name": "Boisson",
           "description": "Boisson à préparer"
-        },
-        "entity_id": {
-          "name": "ID de l'entité",
-          "description": "ID de l'entité de la machine à café"
         }
       }
     }

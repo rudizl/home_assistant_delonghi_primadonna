@@ -7,7 +7,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .base_entity import DelonghiDeviceEntity
-from .const import DOMAIN
 from .device import DelongiPrimadonna
 
 
@@ -18,7 +17,7 @@ async def async_setup_entry(
 ):
     """Set up debug text entity for a config entry."""
 
-    delongh_device: DelongiPrimadonna = hass.data[DOMAIN][entry.unique_id]
+    delongh_device: DelongiPrimadonna = entry.runtime_data
     async_add_entities([DebugInput(delongh_device, hass)])
     return True
 
@@ -37,4 +36,4 @@ class DebugInput(DelonghiDeviceEntity, TextEntity):
 
     @property
     def available(self) -> bool:
-        return self.device.notify
+        return super().available and self.device.notify

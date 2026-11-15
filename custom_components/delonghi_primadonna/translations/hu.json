@@ -156,10 +156,6 @@
         "beverage": {
           "name": "Ital",
           "description": "Ital az előkészítéshez"
-        },
-        "entity_id": {
-          "name": "Entitás azonosító",
-          "description": "A kávéfőző entitás azonosítója"
         }
       }
     }

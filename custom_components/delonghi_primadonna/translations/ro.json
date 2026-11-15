@@ -156,10 +156,6 @@
         "beverage": {
           "name": "Băutură",
           "description": "Băutură de pregătit"
-        },
-        "entity_id": {
-          "name": "ID de entitate",
-          "description": "ID de entitate a mașinii de cafea"
         }
       }
     }

@@ -1,11 +1,9 @@
 """Delongi primadonna device description"""
 import asyncio
-import copy
 import logging
 import time
 import uuid
-from binascii import crc_hqx, hexlify
-from dataclasses import dataclass
+from binascii import hexlify
 from datetime import datetime
 from enum import IntFlag, StrEnum
 
@@ -15,6 +13,7 @@ from bleak_retry_connector import establish_connection
 from homeassistant.components import bluetooth
 from homeassistant.const import CONF_MAC, CONF_MODEL, CONF_NAME
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 
 from .const import (AMERICANO_OFF, AMERICANO_ON, AVAILABLE_PROFILES,
                     BASE_COMMAND, BYTES_AUTOPOWEROFF_COMMAND,
@@ -33,89 +32,13 @@ from .const import (AMERICANO_OFF, AMERICANO_ON, AVAILABLE_PROFILES,
                     WATER_SHORTAGE, WATER_TANK_DETACHED)
 from .machine_switch import MachineSwitch, parse_switches
 from .model import get_machine_model
+from .protocol import (ANSWER_MONITOR_V1, ANSWER_MONITOR_V2,
+                       ANSWER_PROFILE_SELECT, ANSWER_PROFILES,
+                       ANSWER_STATISTICS, START_BYTE, MonitorData, answer_id,
+                       parse_hex_command, parse_monitor_data,
+                       parse_profile_names, parse_statistics, with_crc)
 
 _LOGGER = logging.getLogger(__name__)
-
-START_BYTE = 0xD0
-
-
-@dataclass
-class MonitorData:
-    """Monitor Data structure"""
-    switches: int
-    alarms: int
-    status: int
-    sub_status: int
-    nozzle_state: int
-
-
-def parse_monitor_data(data: bytes) -> MonitorData | None:
-    """Parse Monitor Data packet (v1 0x70 or v2 0x75)"""
-    if len(data) < 3:
-        return None
-
-    answer_id = data[2]
-
-    # Defaults
-    switches = 0
-    alarms = 0
-    status = 0
-    sub_status = 0
-    nozzle_state = -1
-
-    if answer_id == 0x75:  # MonitorDataV2
-        if len(data) < 14:
-            return None
-        # Switches: Bytes 5, 6 (Little Endian)
-        switches = data[5] + (data[6] << 8)
-
-        # Alarms: Bytes 7, 8, 12, 13 (Little Endian in blocks)
-        # Based on MonitorDataV2.b():
-        # iS = z.S(bArr[7]) + (z.S(bArr[8]) << 8)
-        #      + (z.S(bArr[12]) << 16) + (z.S(bArr[13]) << 24)
-        alarms = data[7] + (data[8] << 8) + (data[12] << 16) + (data[13] << 24)
-
-        # Status/State: Byte 9
-        status = data[9]
-
-        # SubStatus: Byte 10
-        sub_status = data[10]
-
-        # Nozzle State: Byte 4 (from MonitorDataV2.a())
-        nozzle_state = data[4]
-
-    elif answer_id == 0x70:  # MonitorData (v1)
-        if len(data) < 11:
-            return None
-
-        # Switches: Bytes 9, 10
-        # Based on MonitorData.g(): bArr[9] + (bArr[10] << 8)
-        switches = data[9] + (data[10] << 8)
-
-        # Alarms: Bytes 4, 5
-        # Based on MonitorData.b(): bArr[4] + (bArr[5] << 8)
-        alarms = data[4] + (data[5] << 8)
-
-        # Status/State: Byte 8
-        # Based on MonitorData.f(): bArr[8]
-        status = data[8]
-
-        # SubStatus: Byte 9
-        # Based on MonitorData.e(): bArr[9]
-        # Note: Byte 9 is also used for switches low byte?
-        # MonitorData.g (Switches) uses 9, 10.
-        # MonitorData.e (SubState/Aux) uses 9.
-        # We will extract it as sub_status anyway.
-        sub_status = data[9]
-
-        # Nozzle State: a() returns -1 for v1.
-        nozzle_state = -1
-
-    else:
-        return None
-
-    return MonitorData(switches, alarms, status, sub_status, nozzle_state)
-
 
 class BeverageEntityFeature(IntFlag):
     """Supported features of the beverage entity"""
@@ -213,6 +136,10 @@ DEVICE_NOTIFICATION = {
 }
 
 
+class DelonghiCommandError(HomeAssistantError):
+    """A command could not be delivered to the machine."""
+
+
 class DelongiPrimadonna:
     """Delongi Primadonna class"""
 
@@ -245,11 +172,11 @@ class DelongiPrimadonna:
         self.status = MACHINE_STATUS[0]
         self.switches = DeviceSwitches()
         self.active_switches: list[MachineSwitch] = []
-        self.sync_time = False
         self._lock = asyncio.Lock()
         self._rx_buffer = bytearray()
         self._response_event = None
-        self._last_response: bytes | None = None
+        # Answer id the pending command waits for (= its command id)
+        self._expected_answer: int | None = None
         self.statistics: dict[int, int | float] = {}
         self._last_stats_request = 0.0
         self._stats_lock = asyncio.Lock()
@@ -400,16 +327,16 @@ class DelongiPrimadonna:
         self._hass.bus.async_fire(f'{DOMAIN}_event', event_data)
 
         if self.notify:
-            answer_id = f"{value[2]:02x}"
+            answer_hex = f"{value[2]:02x}"
             await self._hass.services.async_call(
                 'persistent_notification',
                 'create',
                 {
                     'message': notification_message,
-                    'title': f'{self.name} {answer_id}',
+                    'title': f'{self.name} {answer_hex}',
                     # One notification per answer type: a new packet replaces
                     # the previous one instead of piling up.
-                    'notification_id': f'{self.mac}_debug_{answer_id}',
+                    'notification_id': f'{self.mac}_debug_{answer_hex}',
                 },
             )
         _LOGGER.info('Event triggered: %s', event_data)
@@ -444,24 +371,23 @@ class DelongiPrimadonna:
 
     async def _handle_data(self, sender, value):
         """Handle notifications from the device."""
+        kind = answer_id(value)
         if (
             self._response_event is not None
             and not self._response_event.is_set()
+            and kind == self._expected_answer
         ):
             self._response_event.set()
-        answer_id = value[2] if len(value) > 2 else None
 
-        if answer_id in [0x75, 0x70]:
+        if kind in (ANSWER_MONITOR_V2, ANSWER_MONITOR_V1):
             monitor_data = parse_monitor_data(value)
             if monitor_data:
-                self._handle_monitor_data(monitor_data, answer_id, value)
-        elif answer_id == 0xA4:
+                self._handle_monitor_data(monitor_data, kind, value)
+        elif kind == ANSWER_PROFILES:
             parsed: dict[int, str] = {}
             try:
-                parsed = self._parse_profile_response(
-                    list(value)
-                )
-            except Exception as err:  # noqa: BLE001
+                parsed = parse_profile_names(value)
+            except (ValueError, UnicodeDecodeError) as err:
                 _LOGGER.warning("Failed to parse profile response: %s", err)
             for pid, name in parsed.items():
                 if name:
@@ -471,7 +397,7 @@ class DelongiPrimadonna:
                 self.profiles_map
             )
             self.profiles = list(self.profiles_map.values())
-        elif answer_id == 0xA9:
+        elif kind == ANSWER_PROFILE_SELECT:
             profile_id = value[4] if len(value) > 4 else None
             status = value[5] if len(value) > 5 else None
             _LOGGER.debug(
@@ -480,8 +406,8 @@ class DelongiPrimadonna:
                 status,
                 hexlify(value, " "),
             )
-        elif answer_id == 0xA2:
-            await self._parse_statistics(value)
+        elif kind == ANSWER_STATISTICS:
+            self._parse_statistics(value)
 
         hex_value = hexlify(value, ' ')
 
@@ -492,7 +418,7 @@ class DelongiPrimadonna:
                 sender
             )
             # Statistics replies are polled data, not machine events.
-            if answer_id != 0xA2:
+            if kind != ANSWER_STATISTICS:
                 await self._event_trigger(value)
             if self.on_state_update is not None:
                 self.on_state_update()
@@ -500,7 +426,7 @@ class DelongiPrimadonna:
         self._device_status = hex_value
 
     def _handle_monitor_data(
-        self, monitor_data: MonitorData, answer_id: int, raw_packet: bytes
+        self, monitor_data: MonitorData, kind: int, raw_packet: bytes
     ) -> None:
         """Apply parsed monitor data to device state."""
         self.monitor_received = True
@@ -528,36 +454,8 @@ class DelongiPrimadonna:
             )
 
         # Active switches (v2 only; v1 uses different byte offsets)
-        if answer_id == 0x75:
+        if kind == ANSWER_MONITOR_V2:
             self.active_switches = parse_switches(raw_packet)
-
-    def _parse_profile_response(
-        self,
-        data: list[int],
-    ) -> dict[int, str]:
-        """Parse profile names sent by the machine."""
-
-        b = bytes(data)
-        if len(b) < 4 or b[0] != 0xD0:
-            raise ValueError("Wrong start byte")
-
-        profiles: dict[int, str] = {}
-        NAME_SIZE = 20
-        NAME_OFFSET = 1
-        NAME_HEADER = 4
-        profile_index = 1
-        idx = NAME_HEADER
-        while idx + NAME_SIZE < len(b):
-            profiles.setdefault(
-                profile_index,
-                b[idx:idx + NAME_SIZE]
-                .decode("utf-16-be")
-                .rstrip("\x00")
-                .strip(),
-            )
-            profile_index += 1
-            idx += NAME_SIZE + NAME_OFFSET
-        return profiles
 
     async def power_on(self) -> None:
         """Turn the device on."""
@@ -567,39 +465,50 @@ class DelongiPrimadonna:
         """Turn the device off."""
         await self.send_command(BYTES_POWER_OFF)
 
+    async def _set_switch(self, name: str, value: bool) -> None:
+        """Send the switch command with one switch changed.
+
+        Cup light, energy save and sounds travel in one command, so the
+        new value is applied only once the command was delivered.
+        """
+        previous = getattr(self.switches, name)
+        setattr(self.switches, name, value)
+        try:
+            await self.send_command(self._make_switch_command())
+        except HomeAssistantError:
+            setattr(self.switches, name, previous)
+            raise
+
     async def cup_light_on(self) -> None:
         """Turn the cup light on."""
-        self.switches.cup_light = True
-        await self.send_command(self._make_switch_command())
+        await self._set_switch('cup_light', True)
 
     async def cup_light_off(self) -> None:
         """Turn the cup light off."""
-        self.switches.cup_light = False
-        await self.send_command(self._make_switch_command())
+        await self._set_switch('cup_light', False)
 
     async def energy_save_on(self):
         """Enable energy save mode"""
-        self.switches.energy_save = True
-        await self.send_command(self._make_switch_command())
+        await self._set_switch('energy_save', True)
 
     async def energy_save_off(self):
-        """Enable energy save mode"""
-        self.switches.energy_save = False
-        await self.send_command(self._make_switch_command())
+        """Disable energy save mode"""
+        await self._set_switch('energy_save', False)
 
     async def sound_alarm_on(self):
         """Enable sound alarm"""
-        self.switches.sounds = True
-        await self.send_command(self._make_switch_command())
+        await self._set_switch('sounds', True)
 
     async def sound_alarm_off(self):
         """Disable sound alarm"""
-        self.switches.sounds = False
-        await self.send_command(self._make_switch_command())
+        await self._set_switch('sounds', False)
 
     async def beverage_start(self, beverage: AvailableBeverage) -> None:
         """Start beverage"""
-        await self.send_command(BEVERAGE_COMMANDS.get(beverage).on)
+        command = BEVERAGE_COMMANDS.get(beverage)
+        if command is None:
+            raise HomeAssistantError(f'Unknown beverage: {beverage}')
+        await self.send_command(command.on)
 
     async def beverage_cancel(self) -> None:
         """Cancel beverage"""
@@ -646,10 +555,14 @@ class DelongiPrimadonna:
                 raise
 
         if self.connected and not self._profiles_loaded:
-            command = BYTES_LOAD_PROFILES.copy()
+            command = list(BYTES_LOAD_PROFILES)
             command[5] = self._n_profiles
-            await self.send_command(command)
-            self._profiles_loaded = True
+            try:
+                await self.send_command(command)
+            except HomeAssistantError as err:
+                _LOGGER.debug('Loading profiles failed, will retry: %s', err)
+            else:
+                self._profiles_loaded = True
 
     async def set_time(self, dt: datetime) -> None:
         """Set device clock from provided datetime."""
@@ -661,46 +574,51 @@ class DelongiPrimadonna:
     async def select_profile(self, profile_id) -> None:
         """select a profile."""
         _LOGGER.debug("Send select profile command id=%s", profile_id)
-        message = [0x0D, 0x06, 0xA9, 0xF0, profile_id, 0xD7, 0xC0]
+        message = [0x0D, 0x06, 0xA9, 0xF0, profile_id, 0x00, 0x00]
         await self.send_command(message)
 
     async def set_auto_power_off(self, power_off_interval) -> None:
         """Set auto power off time."""
-        message = copy.deepcopy(BYTES_AUTOPOWEROFF_COMMAND)
+        message = list(BYTES_AUTOPOWEROFF_COMMAND)
         message[9] = power_off_interval
         await self.send_command(message)
 
     async def set_water_hardness(self, hardness_level) -> None:
         """Set water hardness"""
-        message = copy.deepcopy(BYTES_WATER_HARDNESS_COMMAND)
+        message = list(BYTES_WATER_HARDNESS_COMMAND)
         message[9] = hardness_level
         await self.send_command(message)
 
     async def set_water_temperature(self, temperature_level) -> None:
         """Set water temperature"""
-        message = copy.deepcopy(BYTES_WATER_TEMPERATURE_COMMAND)
+        message = list(BYTES_WATER_TEMPERATURE_COMMAND)
         message[9] = temperature_level
         await self.send_command(message)
 
     async def common_command(self, command: str) -> None:
         """Send custom BLE command"""
-        message = [int(x, 16) for x in command.split(' ')]
+        try:
+            message = parse_hex_command(command)
+        except ValueError as err:
+            raise HomeAssistantError(str(err)) from err
         await self.send_command(message)
 
     async def send_command(self, message, retries=3):
+        """Send a command and wait for the answer with the same id.
+
+        Raises DelonghiCommandError when the command could not be
+        written. A missing answer only logs a warning: some commands
+        are not answered by every model.
+        """
+        message_to_send = with_crc(message)
+        hex_message = hexlify(bytearray(message_to_send), ' ')
         async with self._lock:
-            message_to_send = copy.deepcopy(message)
+            last_error: Exception | None = None
             for attempt in range(retries):
                 try:
                     await self._connect()
-                    crc = crc_hqx(bytearray(message_to_send[:-2]), 0x1D0F)
-                    crc_bytes = crc.to_bytes(2, byteorder='big')
-                    message_to_send[-2] = crc_bytes[0]
-                    message_to_send[-1] = crc_bytes[1]
-                    _LOGGER.info(
-                        'Send command: %s',
-                        hexlify(bytearray(message_to_send), " ")
-                    )
+                    _LOGGER.info('Send command: %s', hex_message)
+                    self._expected_answer = answer_id(message_to_send)
                     self._response_event = asyncio.Event()
                     await self._client.write_gatt_char(
                         CONTROLL_CHARACTERISTIC, bytearray(message_to_send)
@@ -712,20 +630,19 @@ class DelongiPrimadonna:
                         )
                     except asyncio.TimeoutError:
                         _LOGGER.warning(
-                            'Timeout waiting for response to command: %s',
-                            hexlify(bytearray(message_to_send), " ")
+                            'No answer to command: %s', hex_message
                         )
-                    finally:
-                        self._response_event = None
                     return
+                except asyncio.CancelledError:
+                    await self._reset_client()
+                    raise
                 except Exception as error:  # noqa: BLE001
                     # _connect re-raises its last error which is not
-                    # always a BleakError (e.g. asyncio.TimeoutError),
-                    # so catch broadly to keep the retry loop alive and
-                    # avoid unhandled exceptions in background tasks.
+                    # always a BleakError (e.g. asyncio.TimeoutError).
                     # Reset the client: GATT errors like status 133
                     # mean the connection is dead even if the client
                     # object still reports connected.
+                    last_error = error
                     await self._reset_client()
                     _LOGGER.warning(
                         'Send command failed: %s (%s, attempt %d)',
@@ -734,56 +651,33 @@ class DelongiPrimadonna:
                         attempt + 1
                     )
                     await asyncio.sleep(2)
-            _LOGGER.error('Failed to send command after %d attempts', retries)
+                finally:
+                    self._response_event = None
+                    self._expected_answer = None
+        raise DelonghiCommandError(
+            f'Could not send command to {self.name} after {retries} '
+            f'attempts: {last_error}'
+        )
 
-    async def _parse_statistics(self, data: bytes) -> None:
-        """Parse statistics response"""
-        if len(data) < 8:
-            return
+    def _parse_statistics(self, data: bytes) -> None:
+        """Store the values of a statistics answer."""
+        _LOGGER.debug(
+            'Statistics raw: %s', hexlify(data, ' ').decode('utf-8')
+        )
+        values = parse_statistics(data)
+        _LOGGER.debug('Statistics parsed: %s', values)
+        self.statistics.update(values)
 
-        hex_data = hexlify(data, " ").decode('utf-8')
-        _LOGGER.debug("Statistics Parser. Raw: %s", hex_data)
-
-        # [0]=D0 [1]=Len [2]=A2 [3]=0F [4-5]=StartAddr
-        start_param_id = (data[4] << 8) | data[5]
-
-        # Offset to first value (byte 6)
-        current_offset = 6
-        current_param_id = start_param_id
-
-        # 1. First value belongs to StartAddr
-        if current_offset + 4 <= len(data) - 2:
-            val = int.from_bytes(
-                data[current_offset:current_offset + 4], byteorder='big')
-            self.statistics[current_param_id] = val
-            _LOGGER.debug(
-                "Statistics Parser.Parsed (Implicit): ID %s = %s",
-                current_param_id,
-                val)
-            current_offset += 4
-
-        # 2. Subsequent parameters are [ID 2B] + [Value 4B]
-        while current_offset + 6 <= len(data) - 2:
-            pid = (data[current_offset] << 8) | data[current_offset + 1]
-            val = int.from_bytes(
-                data[current_offset + 2:current_offset + 6], byteorder='big')
-            self.statistics[pid] = val
-            _LOGGER.debug(
-                "Statistics Parser.Parsed (Explicit): ID %s = %s", pid, val)
-            current_offset += 6
-
-        # Calculate combined values for total coffee
+        # Total coffee = black coffee (3000) + additional totals (3077)
         if 3000 in self.statistics:
-            total = self.statistics[3000] + self.statistics.get(3077, 0)
-            self.statistics[-3077] = total
+            self.statistics[-3077] = (
+                self.statistics[3000] + self.statistics.get(3077, 0)
+            )
 
-        # Convert water quantity to liters (divide by 2000)
-        # Use float division to preserve precision and round to 2 decimal
-        # places.
-        if 106 in self.statistics:
-            water_ml = self.statistics.get(106, 0)
-            if water_ml > 0:
-                self.statistics[10106] = round(water_ml / 2000.0, 2)
+        # Water counter to litres (same scale as before: value / 2000)
+        water = self.statistics.get(106, 0)
+        if water > 0:
+            self.statistics[10106] = round(water / 2000.0, 2)
 
     async def update_statistics(self) -> None:
         """Update statistics with throttling.
@@ -838,7 +732,7 @@ class DelongiPrimadonna:
 
     async def get_statistics(self, start_index: int, count: int) -> None:
         """Get statistics from the machine"""
-        message = copy.deepcopy(BYTES_STATISTICS_COMMAND)
+        message = list(BYTES_STATISTICS_COMMAND)
         message[4] = (start_index >> 8) & 0xFF
         message[5] = start_index & 0xFF
         message[6] = count

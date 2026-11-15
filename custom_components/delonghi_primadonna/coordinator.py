@@ -4,8 +4,11 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.update_coordinator import (DataUpdateCoordinator,
+                                                      UpdateFailed)
 
 from .const import DOMAIN
 from .device import DelongiPrimadonna
@@ -14,26 +17,33 @@ _LOGGER = logging.getLogger(__name__)
 
 UPDATE_INTERVAL = timedelta(seconds=60)
 
+# BLE drops single polls easily; only mark the entities unavailable
+# after this many polls in a row could not reach the machine.
+FAILURES_BEFORE_UNAVAILABLE = 3
+
 
 class DelonghiCoordinator(DataUpdateCoordinator[None]):
     """Single polling loop for the device.
 
-    Replaces the previous per-entity polling (device tracker +
-    every statistics sensor triggering its own update). BLE
-    notifications additionally push instant state updates to all
+    BLE notifications additionally push instant state updates to all
     entities via ``device.on_state_update``.
     """
 
     def __init__(
-        self, hass: HomeAssistant, device: DelongiPrimadonna
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        device: DelongiPrimadonna,
     ) -> None:
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=f'{DOMAIN}_{device.mac}',
             update_interval=UPDATE_INTERVAL,
         )
         self.device = device
+        self._failures = 0
         device.on_state_update = self._device_updated
 
     @callback
@@ -50,6 +60,21 @@ class DelonghiCoordinator(DataUpdateCoordinator[None]):
         (throttled internally).
         """
         await self.device.get_device_name()
-        if self.device.connected and self.device.switches.is_on:
-            await self.device.update_statistics()
+        if not self.device.connected:
+            self._failures += 1
+            if self._failures >= FAILURES_BEFORE_UNAVAILABLE:
+                raise UpdateFailed(
+                    f'{self.device.name} ({self.device.mac}) has not '
+                    f'answered {self._failures} polls in a row'
+                )
+            return None
+
+        self._failures = 0
+        if self.device.switches.is_on:
+            try:
+                await self.device.update_statistics()
+            except HomeAssistantError as err:
+                # Statistics are optional; a failed request must not
+                # mark the whole device unavailable.
+                _LOGGER.debug('Statistics update failed: %s', err)
         return None

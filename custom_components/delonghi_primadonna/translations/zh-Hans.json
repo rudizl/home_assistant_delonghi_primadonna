@@ -156,10 +156,6 @@
         "beverage": {
           "name": "饮料",
           "description": "准备饮料"
-        },
-        "entity_id": {
-          "name": "实体ID",
-          "description": "咖啡机的实体ID"
         }
       }
     }

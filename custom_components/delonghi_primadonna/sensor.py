@@ -9,7 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .base_entity import DelonghiDeviceEntity
-from .const import DOMAIN, NOZZLE_STATE
+from .const import NOZZLE_STATE
 from .device import DelongiPrimadonna
 
 RESTORE_SKIP_STATES = (None, '', 'unknown', 'unavailable')
@@ -22,7 +22,7 @@ async def async_setup_entry(
 ):
     """Register sensor entities for a config entry."""
 
-    delongh_device: DelongiPrimadonna = hass.data[DOMAIN][entry.unique_id]
+    delongh_device: DelongiPrimadonna = entry.runtime_data
     async_add_entities(
         [
             DelongiPrimadonnaNozzleSensor(delongh_device, hass),

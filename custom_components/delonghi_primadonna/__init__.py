@@ -4,11 +4,16 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.const import (ATTR_AREA_ID, ATTR_DEVICE_ID, ATTR_ENTITY_ID,
+                                 Platform)
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.typing import ConfigType
 
 from .const import BEVERAGE_SERVICE_NAME, DOMAIN
 from .coordinator import DelonghiCoordinator
@@ -26,21 +31,110 @@ PLATFORMS: list[str] = [
     Platform.DEVICE_TRACKER,
 ]
 
-__all__ = ['async_setup_entry', 'async_unload_entry', 'BeverageEntityFeature']
+__all__ = [
+    'async_setup',
+    'async_setup_entry',
+    'async_unload_entry',
+    'BeverageEntityFeature',
+]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+ATTR_BEVERAGE = 'beverage'
+
+MAKE_BEVERAGE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_BEVERAGE): vol.In([*AvailableBeverage]),
+        vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
+        vol.Optional(ATTR_DEVICE_ID): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional(ATTR_AREA_ID): vol.All(cv.ensure_list, [cv.string]),
+    }
+)
 
 _LOGGER = logging.getLogger(__name__)
 
+type DelonghiConfigEntry = ConfigEntry[DelongiPrimadonna]
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the integration services."""
+
+    async def make_beverage(call: ServiceCall) -> None:
+        _LOGGER.debug('Make beverage %s', call.data)
+        for device in _target_devices(hass, call):
+            await device.beverage_start(call.data[ATTR_BEVERAGE])
+
+    hass.services.async_register(
+        DOMAIN,
+        BEVERAGE_SERVICE_NAME,
+        make_beverage,
+        schema=MAKE_BEVERAGE_SCHEMA,
+    )
+    return True
+
+
+def _target_devices(
+    hass: HomeAssistant, call: ServiceCall
+) -> list[DelongiPrimadonna]:
+    """Return the machines a service call targets.
+
+    Without any target the call goes to the only configured machine.
+    """
+    loaded: dict[str, DelongiPrimadonna] = {
+        entry.entry_id: entry.runtime_data
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if entry.state is ConfigEntryState.LOADED
+    }
+    device_reg = dr.async_get(hass)
+    entity_reg = er.async_get(hass)
+
+    device_ids: set[str] = set(call.data.get(ATTR_DEVICE_ID, []))
+    entity_ids: set[str] = set(call.data.get(ATTR_ENTITY_ID, []))
+    for area_id in call.data.get(ATTR_AREA_ID, []):
+        device_ids.update(
+            device.id
+            for device in dr.async_entries_for_area(device_reg, area_id)
+        )
+        entity_ids.update(
+            entity.entity_id
+            for entity in er.async_entries_for_area(entity_reg, area_id)
+        )
+
+    entry_ids: set[str] = set()
+    for device_id in device_ids:
+        if (device := device_reg.async_get(device_id)) is not None:
+            entry_ids.update(device.config_entries & loaded.keys())
+    for entity_id in entity_ids:
+        entity = entity_reg.async_get(entity_id)
+        if entity is not None and entity.config_entry_id in loaded:
+            entry_ids.add(entity.config_entry_id)
+
+    has_target = any(
+        call.data.get(key)
+        for key in (ATTR_DEVICE_ID, ATTR_ENTITY_ID, ATTR_AREA_ID)
+    )
+    if not has_target and len(loaded) == 1:
+        entry_ids = set(loaded)
+
+    if not entry_ids:
+        raise ServiceValidationError(
+            'No DeLonghi machine matches the target; pick a device or '
+            'entity when several machines are configured'
+        )
+    return [loaded[entry_id] for entry_id in entry_ids]
+
+
+async def async_setup_entry(
+    hass: HomeAssistant, entry: DelonghiConfigEntry
+) -> bool:
     """Set up from a config entry"""
-    hass.data.setdefault(DOMAIN, {})
     # Preload the machine models JSON in the executor so the device
     # constructor never does blocking file I/O in the event loop.
     await hass.async_add_executor_job(get_machine_models)
     delonghi_device = DelongiPrimadonna(entry.data, hass)
-    coordinator = DelonghiCoordinator(hass, delonghi_device)
+    coordinator = DelonghiCoordinator(hass, entry, delonghi_device)
     delonghi_device.coordinator = coordinator
-    hass.data[DOMAIN][entry.unique_id] = delonghi_device
+    entry.runtime_data = delonghi_device
     _LOGGER.debug('Device id %s', entry.unique_id)
     _LOGGER.debug("Device data %s", entry.data)
 
@@ -57,56 +151,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    if not hass.services.has_service(DOMAIN, BEVERAGE_SERVICE_NAME):
-
-        async def make_beverage(call: ServiceCall) -> None:
-            _LOGGER.debug('Make beverage %s', call.data)
-            devices: dict[str, DelongiPrimadonna] = hass.data.get(DOMAIN, {})
-            device = None
-            device_id = call.data.get('device_id')
-            if device_id:
-                device_entry = dr.async_get(hass).async_get(device_id)
-                if device_entry:
-                    for domain, identifier in device_entry.identifiers:
-                        if domain == DOMAIN and identifier in devices:
-                            device = devices[identifier]
-                            break
-            if device is None and len(devices) == 1:
-                device = next(iter(devices.values()))
-            if device is None:
-                _LOGGER.error(
-                    'make_beverage: unable to determine target device; '
-                    'pass device_id when multiple machines are configured'
-                )
-                return
-            await device.beverage_start(call.data['beverage'])
-
-        hass.services.async_register(
-            DOMAIN,
-            BEVERAGE_SERVICE_NAME,
-            make_beverage,
-            schema=vol.Schema(
-                {
-                    vol.Required('beverage'): vol.In([*AvailableBeverage]),
-                    vol.Optional('entity_id'): vol.Coerce(str),
-                    vol.Optional('device_id'): vol.Coerce(str),
-                }
-            ),
-        )
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(
+    hass: HomeAssistant, entry: DelonghiConfigEntry
+) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(
         entry, PLATFORMS
     )
     if unload_ok:
-        await hass.data[DOMAIN][entry.unique_id].disconnect()
-        hass.data[DOMAIN].pop(entry.unique_id)
-        # Unregister service only when last instance is removed
-        if not hass.data[DOMAIN]:
-            hass.services.async_remove(DOMAIN, BEVERAGE_SERVICE_NAME)
+        await entry.runtime_data.disconnect()
     _LOGGER.debug('Unload %s', entry.unique_id)
     return unload_ok

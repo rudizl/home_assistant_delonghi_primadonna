@@ -156,10 +156,6 @@
         "beverage": {
           "name": "Napój",
           "description": "Napój do przygotowania"
-        },
-        "entity_id": {
-          "name": "ID encji",
-          "description": "ID encji ekspresu do kawy"
         }
       }
     }
