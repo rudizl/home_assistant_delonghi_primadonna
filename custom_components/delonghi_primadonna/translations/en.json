@@ -173,10 +173,6 @@
         "beverage": {
           "name": "Beverage",
           "description": "Beverage to prepare"
-        },
-        "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID of the coffee machine"
         }
       }
     }

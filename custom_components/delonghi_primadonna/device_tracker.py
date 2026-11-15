@@ -6,7 +6,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .base_entity import DelonghiDeviceEntity
-from .const import DOMAIN
 from .device import DelongiPrimadonna
 
 
@@ -17,7 +16,7 @@ async def async_setup_entry(
 ):
     """Set up a device tracker for a config entry."""
 
-    delongh_device: DelongiPrimadonna = hass.data[DOMAIN][entry.unique_id]
+    delongh_device: DelongiPrimadonna = entry.runtime_data
     async_add_entities([DelongiPrimadonnaDeviceTracker(delongh_device, hass)])
     return True
 
@@ -34,6 +33,11 @@ class DelongiPrimadonnaDeviceTracker(DelonghiDeviceEntity, ScannerEntity):
         if self.device.connected:
             return 'mdi:coffee-maker-check-outline'
         return 'mdi:coffee-maker-outline'
+
+    @property
+    def available(self) -> bool:
+        """Always available: an unreachable machine is 'not_home'."""
+        return True
 
     @property
     def mac_address(self) -> str:

@@ -173,10 +173,6 @@
         "beverage": {
           "name": "Напитка",
           "description": "Напитка за приготвяне"
-        },
-        "entity_id": {
-          "name": "Entity ID",
-          "description": "Entity ID на кафемашината"
         }
       }
     }

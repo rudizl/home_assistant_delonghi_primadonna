@@ -1,5 +1,7 @@
-"""Constants for the oiot integration."""
-from homeassistant.const import EntityCategory
+"""Constants for the DeLonghi BLE integration.
+
+No Home Assistant imports here, so the protocol tests can load it.
+"""
 
 DOMAIN = 'delonghi_primadonna'
 
@@ -32,12 +34,6 @@ POWER_OFF_OPTIONS = {
     '1h': 2,
     '2h': 3,
     '3h': 4
-}
-
-ENTITY_CATEGORY = {
-    'None': None,
-    'Configuration': EntityCategory.CONFIG,
-    'Diagnostic': EntityCategory.DIAGNOSTIC,
 }
 
 NOZZLE_STATE = {
@@ -205,9 +201,11 @@ WATER_SHORTAGE = [0xd0, 0x12, 0x75, 0x0f, 0x01, 0x45, 0x00, 0x01, 0x00,
 WATER_SHORTAGE2 = [0xd0, 0x12, 0x75, 0x0f, 0x01, 0x41, 0x00, 0x05, 0x00,
                    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x4e]
 
+# The CRC was recorded as 0x43 0xd0, which no machine sends: the
+# packet never matched and the notification never fired.
 COFFEE_GROUNDS_CONTAINER_FULL = [0xd0, 0x12, 0x75, 0x0f, 0x01, 0x05, 0x00,
                                  0x02, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00,
-                                 0x00, 0x00, 0x00, 0x43, 0xd0]
+                                 0x00, 0x00, 0x00, 0x43, 0xeb]
 
 # On some devices the grounds container clean notification includes an
 # additional bit in the general notification field. Handle it as the same

@@ -156,10 +156,6 @@
         "beverage": {
           "name": "음료",
           "description": "준비 할 음료"
-        },
-        "entity_id": {
-          "name": "엔티티 ID",
-          "description": "커피 머신의 엔티티 ID"
         }
       }
     }

@@ -6,7 +6,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .base_entity import DelonghiDeviceEntity
-from .const import DOMAIN
 from .device import DelongiPrimadonna
 
 
@@ -17,7 +16,7 @@ async def async_setup_entry(
 ):
     """Set up button entities for a config entry."""
 
-    delongh_device: DelongiPrimadonna = hass.data[DOMAIN][entry.unique_id]
+    delongh_device: DelongiPrimadonna = entry.runtime_data
     async_add_entities([DelongiPrimadonnaPowerButton(delongh_device, hass)])
     return True
 
@@ -28,4 +27,4 @@ class DelongiPrimadonnaPowerButton(DelonghiDeviceEntity, ButtonEntity):
     _attr_translation_key = 'power_on'
 
     async def async_press(self):
-        self.hass.async_create_task(self.device.power_on())
+        await self.device.power_on()

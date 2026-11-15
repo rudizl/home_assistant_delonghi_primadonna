@@ -6,11 +6,12 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .base_entity import DelonghiDeviceEntity
-from .const import DOMAIN, POWER_OFF_OPTIONS
+from .const import POWER_OFF_OPTIONS
 from .device import AvailableBeverage, BeverageEntityFeature, DelongiPrimadonna
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ async def async_setup_entry(
 ):
     """Set up select entities for a config entry."""
 
-    delongh_device: DelongiPrimadonna = hass.data[DOMAIN][entry.unique_id]
+    delongh_device: DelongiPrimadonna = entry.runtime_data
     async_add_entities(
         [
             BeverageSelect(delongh_device, hass),
@@ -77,10 +78,10 @@ class ProfileSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
         )
         _LOGGER.debug("Select profile '%s' id=%s", option, profile_id)
         if profile_id is None:
-            _LOGGER.warning("Unknown profile '%s', command not sent", option)
-            return
-        self.hass.async_create_task(self.device.select_profile(profile_id))
+            raise HomeAssistantError(f"Unknown profile '{option}'")
+        await self.device.select_profile(profile_id)
         self._attr_current_option = option
+        self.async_write_ha_state()
 
 
 class BeverageSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
@@ -103,7 +104,7 @@ class BeverageSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Select beverage action"""
-        self.hass.async_create_task(self.device.beverage_start(option))
+        await self.device.beverage_start(option)
 
 
 class EnergySaveModeSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
@@ -126,10 +127,9 @@ class EnergySaveModeSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
     async def async_select_option(self, option: str) -> None:
         """Select energy save mode action"""
         power_off_interval = POWER_OFF_OPTIONS.get(option)
-        self.hass.async_create_task(
-            self.device.set_auto_power_off(power_off_interval)
-        )
+        await self.device.set_auto_power_off(power_off_interval)
         self._attr_current_option = option
+        self.async_write_ha_state()
 
 
 class WaterHardnessSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
@@ -152,10 +152,9 @@ class WaterHardnessSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
     async def async_select_option(self, option: str) -> None:
         """Select water hardness action"""
         water_hardness = self._attr_options.index(option)
-        self.hass.async_create_task(
-            self.device.set_water_hardness(water_hardness)
-        )
+        await self.device.set_water_hardness(water_hardness)
         self._attr_current_option = option
+        self.async_write_ha_state()
 
 
 class WaterTemperatureSelect(
@@ -181,7 +180,6 @@ class WaterTemperatureSelect(
     async def async_select_option(self, option: str) -> None:
         """Select water temperature action"""
         water_temperature = self._attr_options.index(option)
-        self.hass.async_create_task(
-            self.device.set_water_temperature(water_temperature)
-        )
+        await self.device.set_water_temperature(water_temperature)
         self._attr_current_option = option
+        self.async_write_ha_state()

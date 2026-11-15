@@ -7,12 +7,13 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .base_entity import DelonghiDeviceEntity
-from .const import DOMAIN, POWER_OFF_HOLD_SECONDS, POWER_ON_HOLD_SECONDS
+from .const import POWER_OFF_HOLD_SECONDS, POWER_ON_HOLD_SECONDS
 from .device import DelongiPrimadonna
 from .model import get_machine_model
 
@@ -24,7 +25,7 @@ async def async_setup_entry(
 ):
     """Register switch entities for a config entry."""
 
-    delongh_device: DelongiPrimadonna = hass.data[DOMAIN][entry.unique_id]
+    delongh_device: DelongiPrimadonna = entry.runtime_data
     model = get_machine_model(delongh_device.product_code)
 
     switches = [
@@ -82,7 +83,12 @@ class DelongiPrimadonnaPowerSwitch(DelonghiDeviceEntity, SwitchEntity):
         self._booting = True
         self._boot_until = time.monotonic() + POWER_ON_HOLD_SECONDS
         self.async_write_ha_state()
-        self.hass.async_create_task(self.device.power_on())
+        try:
+            await self.device.power_on()
+        except HomeAssistantError:
+            self._booting = False
+            self.async_write_ha_state()
+            raise
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the machine off."""
@@ -90,7 +96,12 @@ class DelongiPrimadonnaPowerSwitch(DelonghiDeviceEntity, SwitchEntity):
         self._shutting_down = True
         self._shutdown_until = time.monotonic() + POWER_OFF_HOLD_SECONDS
         self.async_write_ha_state()
-        self.hass.async_create_task(self.device.power_off())
+        try:
+            await self.device.power_off()
+        except HomeAssistantError:
+            self._shutting_down = False
+            self.async_write_ha_state()
+            raise
 
 
 class DelongiPrimadonnaCupLightSwitch(
@@ -118,13 +129,15 @@ class DelongiPrimadonnaCupLightSwitch(
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the device on."""
-        self.hass.async_create_task(self.device.cup_light_on())
+        await self.device.cup_light_on()
         self._attr_is_on = True
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the device off."""
-        self.hass.async_create_task(self.device.cup_light_off())
+        await self.device.cup_light_off()
         self._attr_is_on = False
+        self.async_write_ha_state()
 
 
 class DelongiPrimadonnaNotificationSwitch(
@@ -144,6 +157,11 @@ class DelongiPrimadonnaNotificationSwitch(
             self.device.notify = last_state.state == 'on'
 
     @property
+    def available(self) -> bool:
+        """A local setting, usable even when the machine is offline."""
+        return True
+
+    @property
     def is_on(self) -> bool:
         """Checks is the notification ON."""
         return self.device.notify
@@ -156,10 +174,12 @@ class DelongiPrimadonnaNotificationSwitch(
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the notification on."""
         self.device.notify = True
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the notification off."""
         self.device.notify = False
+        self.async_write_ha_state()
 
 
 class DelongiPrimadonnaPowerSaveSwitch(
@@ -186,13 +206,15 @@ class DelongiPrimadonnaPowerSaveSwitch(
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the energy save on"""
-        self.hass.async_create_task(self.device.energy_save_on())
+        await self.device.energy_save_on()
         self._attr_is_on = True
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the energy save off"""
-        self.hass.async_create_task(self.device.energy_save_off())
+        await self.device.energy_save_off()
         self._attr_is_on = False
+        self.async_write_ha_state()
 
 
 class DelongiPrimadonnaSoundsSwitch(
@@ -219,13 +241,15 @@ class DelongiPrimadonnaSoundsSwitch(
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the sounds on."""
-        self.hass.async_create_task(self.device.sound_alarm_on())
+        await self.device.sound_alarm_on()
         self._attr_is_on = True
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the sounds off."""
-        self.hass.async_create_task(self.device.sound_alarm_off())
+        await self.device.sound_alarm_off()
         self._attr_is_on = False
+        self.async_write_ha_state()
 
 
 class DelongiPrimadonnaTimeSyncSwitch(
@@ -247,13 +271,12 @@ class DelongiPrimadonnaTimeSyncSwitch(
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Sync time and enable."""
-        self.hass.async_create_task(
-            # Home Assistant time zone, not the host system one.
-            self.device.set_time(dt_util.now())
-        )
+        # Home Assistant time zone, not the host system one.
+        await self.device.set_time(dt_util.now())
         self._attr_is_on = True
+        self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable time sync."""
-        self.device.sync_time = False
         self._attr_is_on = False
+        self.async_write_ha_state()

@@ -156,10 +156,6 @@
         "beverage": {
           "name": "飲み物",
           "description": "準備する飲み物"
-        },
-        "entity_id": {
-          "name": "エンティティID",
-          "description": "コーヒーマシンのエンティティID"
         }
       }
     }
