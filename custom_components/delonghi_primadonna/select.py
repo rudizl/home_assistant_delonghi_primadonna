@@ -132,22 +132,32 @@ class EnergySaveModeSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
         self.async_write_ha_state()
 
 
+def _restored_option(state: str, options: list[str]) -> str | None:
+    """Map a restored state to an option key.
+
+    Before 2026.11.3 the options were English labels ('Very Hard');
+    they are translation keys now ('very_hard').
+    """
+    key = state.strip().lower().replace(' ', '_')
+    return key if key in options else None
+
+
 class WaterHardnessSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
     """Water hardness management"""
 
-    _attr_options = ['Soft', 'Medium', 'Hard', 'Very Hard']
-    _attr_current_option = 'Soft'
+    # Index in this list = value sent to the machine
+    _attr_options = ['soft', 'medium', 'hard', 'very_hard']
+    _attr_current_option = 'soft'
     _attr_translation_key = 'water_hardness'
     _attr_icon = 'mdi:water'
     _attr_entity_category = EntityCategory.CONFIG
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (
-            (last_state := await self.async_get_last_state()) is not None
-            and last_state.state in self._attr_options
-        ):
-            self._attr_current_option = last_state.state
+        if (last_state := await self.async_get_last_state()) is not None:
+            option = _restored_option(last_state.state, self._attr_options)
+            if option is not None:
+                self._attr_current_option = option
 
     async def async_select_option(self, option: str) -> None:
         """Select water hardness action"""
@@ -162,20 +172,19 @@ class WaterTemperatureSelect(
 ):
     """Water temperature management"""
 
-    _attr_options = ['Low', 'Medium', 'High', 'Highest']
-    _attr_current_option = 'Low'
+    # Index in this list = value sent to the machine
+    _attr_options = ['low', 'medium', 'high', 'highest']
+    _attr_current_option = 'low'
     _attr_translation_key = 'water_temperature'
     _attr_icon = 'mdi:thermometer'
-    _attr_supported_features: BeverageEntityFeature = BeverageEntityFeature(1)
     _attr_entity_category = EntityCategory.CONFIG
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if (
-            (last_state := await self.async_get_last_state()) is not None
-            and last_state.state in self._attr_options
-        ):
-            self._attr_current_option = last_state.state
+        if (last_state := await self.async_get_last_state()) is not None:
+            option = _restored_option(last_state.state, self._attr_options)
+            if option is not None:
+                self._attr_current_option = option
 
     async def async_select_option(self, option: str) -> None:
         """Select water temperature action"""

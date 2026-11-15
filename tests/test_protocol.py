@@ -4,7 +4,7 @@ import pytest
 from delonghi_primadonna import const
 from delonghi_primadonna.machine_switch import MachineSwitch, parse_switches
 from delonghi_primadonna.protocol import (MonitorData, answer_id,
-                                          parse_hex_command,
+                                          normalize_mac, parse_hex_command,
                                           parse_monitor_data,
                                           parse_profile_names,
                                           parse_statistics, with_crc)
@@ -145,3 +145,26 @@ def test_parse_hex_command():
 def test_parse_hex_command_rejects_bad_input(value):
     with pytest.raises(ValueError):
         parse_hex_command(value)
+
+
+@pytest.mark.parametrize(
+    ('value', 'expected'),
+    [
+        ('00:A0:50:34:77:64', '00:A0:50:34:77:64'),
+        ('00:a0:50:34:77:64', '00:A0:50:34:77:64'),
+        (' 00-A0-50-34-77-64 ', '00:A0:50:34:77:64'),
+        ('00a050347764', '00:A0:50:34:77:64'),
+        ('00:a0:50', None),
+        ('zz:a0:50:34:77:64', None),
+        ('', None),
+    ],
+)
+def test_normalize_mac(value, expected):
+    assert normalize_mac(value) == expected
+
+
+def test_status_options_cover_every_status():
+    options = set(const.STATUS_OPTIONS)
+    assert set(const.MACHINE_STATUS.values()) <= options
+    assert set(const.DEVICE_STATUS.values()) <= options
+    assert {const.UNKNOWN_STATE, const.UNKNOWN_ALARM} <= options

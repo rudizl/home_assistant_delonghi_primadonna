@@ -9,6 +9,7 @@ bytes are a CRC-16/CCITT over everything before them.
 """
 from __future__ import annotations
 
+import re
 from binascii import crc_hqx
 from dataclasses import dataclass
 
@@ -24,6 +25,8 @@ ANSWER_PROFILE_SELECT = 0xA9
 PROFILE_NAME_SIZE = 20
 PROFILE_HEADER_SIZE = 4
 PROFILE_GAP_SIZE = 1
+
+MAC_PATTERN = re.compile(r'^([0-9A-F]{2}:){5}[0-9A-F]{2}$')
 
 
 @dataclass
@@ -150,3 +153,15 @@ def parse_hex_command(command: str) -> list[int]:
             'A command needs at least 4 bytes in the range 00-ff'
         )
     return message
+
+
+def normalize_mac(value: str) -> str | None:
+    """Return the MAC as AA:BB:CC:DD:EE:FF, or None if it is not one.
+
+    Upper case, as Bluetooth discovery reports it, so a manual entry
+    and a discovered machine get the same config entry id.
+    """
+    mac = value.strip().upper().replace('-', ':')
+    if len(mac) == 12 and ':' not in mac:
+        mac = ':'.join(mac[i:i + 2] for i in range(0, 12, 2))
+    return mac if MAC_PATTERN.match(mac) else None

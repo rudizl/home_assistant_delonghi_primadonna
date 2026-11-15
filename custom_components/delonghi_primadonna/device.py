@@ -29,7 +29,8 @@ from .const import (AMERICANO_OFF, AMERICANO_ON, AVAILABLE_PROFILES,
                     ESPRESSO_OFF, ESPRESSO_ON, HOTWATER_OFF, HOTWATER_ON,
                     LONG_OFF, LONG_ON, MACHINE_STATUS, NAME_CHARACTERISTIC,
                     NOZZLE_STATE, START_COFFEE, STEAM_OFF, STEAM_ON,
-                    WATER_SHORTAGE, WATER_TANK_DETACHED)
+                    UNKNOWN_ALARM, UNKNOWN_STATE, WATER_SHORTAGE,
+                    WATER_TANK_DETACHED)
 from .machine_switch import MachineSwitch, parse_switches
 from .model import get_machine_model
 from .protocol import (ANSWER_MONITOR_V1, ANSWER_MONITOR_V2,
@@ -141,6 +142,11 @@ class DelonghiCommandError(HomeAssistantError):
     """A command could not be delivered to the machine."""
 
 
+# The machine does not echo the power command (0x84); it pushes a
+# monitor packet with the new state instead, within about a second.
+POWER_ANSWERS = frozenset({0x84, ANSWER_MONITOR_V2, ANSWER_MONITOR_V1})
+
+
 class DelongiPrimadonna:
     """Delongi Primadonna class"""
 
@@ -171,13 +177,15 @@ class DelongiPrimadonna:
         # show their restored state instead of the defaults above.
         self.monitor_received = False
         self.status = MACHINE_STATUS[0]
+        # Raw state byte of the last monitor packet
+        self.status_code: int | None = None
         self.switches = DeviceSwitches()
         self.active_switches: list[MachineSwitch] = []
         self._lock = asyncio.Lock()
         self._rx_buffer = bytearray()
         self._response_event = None
-        # Answer id the pending command waits for (= its command id)
-        self._expected_answer: int | None = None
+        # Answer ids that complete the pending command
+        self._expected_answers: frozenset[int] = frozenset()
         self.statistics: dict[int, int | float] = {}
         self._last_stats_request = 0.0
         self._stats_lock = asyncio.Lock()
@@ -376,7 +384,7 @@ class DelongiPrimadonna:
         if (
             self._response_event is not None
             and not self._response_event.is_set()
-            and kind == self._expected_answer
+            and kind in self._expected_answers
         ):
             self._response_event.set()
 
@@ -437,21 +445,22 @@ class DelongiPrimadonna:
         # Nozzle state (only present in v2 / 0x75 packets)
         if monitor_data.nozzle_state != -1:
             self.steam_nozzle = NOZZLE_STATE.get(
-                monitor_data.nozzle_state, monitor_data.nozzle_state
+                monitor_data.nozzle_state, NOZZLE_STATE[-1]
             )
 
         # Alarm bitmask — feeds the Descale binary sensor (bit 2)
         self.service = monitor_data.alarms
+        self.status_code = monitor_data.status
 
-        # Display status: show first active alarm, or machine state
+        # Display status: show first active alarm, or machine state.
+        # Codes without a name map to a fixed key so the status sensor
+        # can be an enum; the raw codes stay in its attributes.
         if monitor_data.alarms > 0:
-            for i in range(32):
-                if (monitor_data.alarms >> i) & 1:
-                    self.status = DEVICE_STATUS.get(i, f"Alarm {i}")
-                    break
+            first = (monitor_data.alarms & -monitor_data.alarms).bit_length()
+            self.status = DEVICE_STATUS.get(first - 1, UNKNOWN_ALARM)
         else:
             self.status = MACHINE_STATUS.get(
-                monitor_data.status, f"State {monitor_data.status}"
+                monitor_data.status, UNKNOWN_STATE
             )
 
         # Active switches (v2 only; v1 uses different byte offsets)
@@ -460,11 +469,21 @@ class DelongiPrimadonna:
 
     async def power_on(self) -> None:
         """Turn the device on."""
-        await self.send_command(BYTES_POWER)
+        await self.send_command(BYTES_POWER, answers=POWER_ANSWERS)
 
     async def power_off(self) -> None:
-        """Turn the device off."""
-        await self.send_command(BYTES_POWER_OFF)
+        """Turn the device off.
+
+        Not every model accepts this over Bluetooth (a Dinamica Plus
+        ignores it), so a missing answer is reported as an error.
+        """
+        if not await self.send_command(
+            BYTES_POWER_OFF, answers=POWER_ANSWERS
+        ):
+            raise DelonghiCommandError(
+                f'{self.name} did not react to the power off command; '
+                'this model may not support turning off over Bluetooth'
+            )
 
     async def _set_switch(self, name: str, value: bool) -> None:
         """Send the switch command with one switch changed.
@@ -604,9 +623,16 @@ class DelongiPrimadonna:
             raise HomeAssistantError(str(err)) from err
         await self.send_command(message)
 
-    async def send_command(self, message, retries=3):
-        """Send a command and wait for the answer with the same id.
+    async def send_command(
+        self,
+        message,
+        retries: int = 3,
+        answers: frozenset[int] | None = None,
+    ) -> bool:
+        """Send a command and wait for its answer.
 
+        The answer is the packet with the command's own id, or any id
+        in ``answers`` when given. Returns whether an answer arrived.
         Raises DelonghiCommandError when the command could not be
         written. A missing answer only logs a warning: some commands
         are not answered by every model.
@@ -619,7 +645,11 @@ class DelongiPrimadonna:
                 try:
                     await self._connect()
                     _LOGGER.info('Send command: %s', hex_message)
-                    self._expected_answer = answer_id(message_to_send)
+                    self._expected_answers = (
+                        answers
+                        if answers is not None
+                        else frozenset({answer_id(message_to_send)})
+                    )
                     self._response_event = asyncio.Event()
                     await self._client.write_gatt_char(
                         CONTROLL_CHARACTERISTIC, bytearray(message_to_send)
@@ -633,7 +663,8 @@ class DelongiPrimadonna:
                         _LOGGER.warning(
                             'No answer to command: %s', hex_message
                         )
-                    return
+                        return False
+                    return True
                 except asyncio.CancelledError:
                     await self._reset_client()
                     raise
@@ -654,7 +685,7 @@ class DelongiPrimadonna:
                     await asyncio.sleep(2)
                 finally:
                     self._response_event = None
-                    self._expected_answer = None
+                    self._expected_answers = frozenset()
         raise DelonghiCommandError(
             f'Could not send command to {self.name} after {retries} '
             f'attempts: {last_error}'

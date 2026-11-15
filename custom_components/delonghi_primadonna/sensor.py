@@ -3,13 +3,13 @@
 from homeassistant.components.sensor import (SensorDeviceClass, SensorEntity,
                                              SensorStateClass)
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory
+from homeassistant.const import EntityCategory, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .base_entity import DelonghiDeviceEntity
-from .const import NOZZLE_STATE
+from .const import NOZZLE_STATE, STATUS_OPTIONS
 from .device import DelongiPrimadonna
 
 RESTORE_SKIP_STATES = (None, '', 'unknown', 'unavailable')
@@ -31,44 +31,24 @@ async def async_setup_entry(
 
             # Statistics sensors
             DelongiPrimadonnaStatisticsSensor(
-                delongh_device, hass,
-                'total_coffee', -3077, 'Total Coffee',
+                delongh_device, hass, 'total_coffee', -3077,
                 icon='mdi:coffee'),
             DelongiPrimadonnaStatisticsSensor(
-                delongh_device,
-                hass,
-                'total_coffee_with_milk',
-                3001,
-                'Total Coffee with Milk',
+                delongh_device, hass, 'total_coffee_with_milk', 3001,
                 icon='mdi:coffee-outline'),
             DelongiPrimadonnaStatisticsSensor(
-                delongh_device,
-                hass,
-                'total_water',
-                10106,
-                'Total Water',
-                'L',
-                'mdi:water'),
+                delongh_device, hass, 'total_water', 10106,
+                unit=UnitOfVolume.LITERS,
+                device_class=SensorDeviceClass.WATER,
+                icon='mdi:water'),
             DelongiPrimadonnaStatisticsSensor(
-                delongh_device,
-                hass,
-                'descaling_count',
-                105,
-                'Descaling Count',
+                delongh_device, hass, 'descaling_count', 105,
                 icon='mdi:shimmer'),
             DelongiPrimadonnaStatisticsSensor(
-                delongh_device,
-                hass,
-                'milk_cleaning_count',
-                115,
-                'Milk Cleaning Count',
+                delongh_device, hass, 'milk_cleaning_count', 115,
                 icon='mdi:water-sync'),
             DelongiPrimadonnaStatisticsSensor(
-                delongh_device,
-                hass,
-                'filter_replace_count',
-                108,
-                'Filter Replacements',
+                delongh_device, hass, 'filter_replace_count', 108,
                 icon='mdi:filter'),
         ]
     )
@@ -127,6 +107,8 @@ class DelongiPrimadonnaStatusSensor(
     Shows the actual device status
     """
 
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = STATUS_OPTIONS
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = 'device_status'
     _attr_icon = 'mdi:thumb-up-outline'
@@ -138,10 +120,9 @@ class DelongiPrimadonnaStatusSensor(
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         last_state = await self.async_get_last_state()
-        if (
-            last_state is not None
-            and last_state.state not in RESTORE_SKIP_STATES
-        ):
+        # Older versions stored 'State 9' / 'Alarm 28' style values,
+        # which an enum sensor cannot show.
+        if last_state is not None and last_state.state in STATUS_OPTIONS:
             self._restored_value = last_state.state
 
     @property
@@ -151,6 +132,14 @@ class DelongiPrimadonnaStatusSensor(
         if not self.device.connected and self._restored_value:
             return self._restored_value
         return self.device.status
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | int | None]:
+        """Raw codes, for states and alarms that have no name yet."""
+        return {
+            'state_code': self.device.status_code,
+            'alarm_bits': f'0x{self.device.service:08x}',
+        }
 
 
 class DelongiPrimadonnaSwitchesSensor(
@@ -190,7 +179,6 @@ class DelongiPrimadonnaStatisticsSensor(
     Shows statistics from the machine.
     """
 
-    _attr_device_class = None
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(
@@ -199,18 +187,18 @@ class DelongiPrimadonnaStatisticsSensor(
         hass: HomeAssistant,
         sensor_type: str,
         param_id: int,
-        name: str,
-        native_unit_of_measurement: str = None,
+        unit: str | None = None,
+        device_class: SensorDeviceClass | None = None,
         icon: str = 'mdi:counter'
     ) -> None:
         """Initialize the sensor."""
         super().__init__(device, hass)
         self._param_id = param_id
         self._restored_value = None
-        self._attr_name = name
         self._attr_unique_id = f"{device.mac}_{sensor_type}"
         self._attr_translation_key = sensor_type
-        self._attr_native_unit_of_measurement = native_unit_of_measurement
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = device_class
         self._attr_icon = icon
 
     async def async_added_to_hass(self) -> None:
