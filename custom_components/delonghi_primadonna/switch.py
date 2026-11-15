@@ -1,6 +1,5 @@
 """Switch entities for Delonghi Primadonna."""
 
-import datetime
 import time
 from typing import Any
 
@@ -10,6 +9,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.util import dt as dt_util
 
 from .base_entity import DelonghiDeviceEntity
 from .const import DOMAIN, POWER_OFF_HOLD_SECONDS, POWER_ON_HOLD_SECONDS
@@ -106,6 +106,10 @@ class DelongiPrimadonnaCupLightSwitch(
         await super().async_added_to_hass()
         if (last_state := await self.async_get_last_state()) is not None:
             self._attr_is_on = last_state.state == 'on'
+            # Keep the device object in sync: the switch command sends
+            # all three bits at once, so a stale default would reset
+            # the other settings on the machine.
+            self.device.switches.cup_light = self._attr_is_on
 
     @property
     def entity_category(self) -> EntityCategory:
@@ -170,6 +174,10 @@ class DelongiPrimadonnaPowerSaveSwitch(
         await super().async_added_to_hass()
         if (last_state := await self.async_get_last_state()) is not None:
             self._attr_is_on = last_state.state == 'on'
+            # Keep the device object in sync: the switch command sends
+            # all three bits at once, so a stale default would reset
+            # the other settings on the machine.
+            self.device.switches.energy_save = self._attr_is_on
 
     @property
     def entity_category(self) -> EntityCategory:
@@ -199,6 +207,10 @@ class DelongiPrimadonnaSoundsSwitch(
         await super().async_added_to_hass()
         if (last_state := await self.async_get_last_state()) is not None:
             self._attr_is_on = last_state.state == 'on'
+            # Keep the device object in sync: the switch command sends
+            # all three bits at once, so a stale default would reset
+            # the other settings on the machine.
+            self.device.switches.sounds = self._attr_is_on
 
     @property
     def entity_category(self) -> EntityCategory:
@@ -236,7 +248,8 @@ class DelongiPrimadonnaTimeSyncSwitch(
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Sync time and enable."""
         self.hass.async_create_task(
-            self.device.set_time(datetime.datetime.now())
+            # Home Assistant time zone, not the host system one.
+            self.device.set_time(dt_util.now())
         )
         self._attr_is_on = True
 

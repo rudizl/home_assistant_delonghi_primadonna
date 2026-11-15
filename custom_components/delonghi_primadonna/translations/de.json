@@ -73,7 +73,7 @@
           "coffee_waste_container_full": "Kaffeesatzbehälter voll",
           "descale_alarm": "Entkalkungsalarm",
           "replace_water_filter": "Wasserfilter ersetzen",
-          "coffe_ground_too_fine": "Kaffeemahlung zu fein",
+          "coffee_ground_too_fine": "Kaffeemahlung zu fein",
           "coffee_beans_empty": "Kaffeebohnen leer",
           "machine_to_service": "Maschine warten",
           "coffee_heater_probe_failure": "Fehler Kaffeekopfheizungssensor",
@@ -97,8 +97,7 @@
           "condense_fan_problem": "Problem Kondensatorlüfter",
           "clock_bt_comm_problem": "Uhr/BT-Kommunikationsproblem",
           "spi_comm_problem": "SPI-Kommunikationsproblem",
-          "unknown_alarm": "Unbekannter Alarm",
-          "ignore_alarm": "Alarm ignorieren"
+          "unknown_alarm": "Unbekannter Alarm"
         }
       },
       "switches": {

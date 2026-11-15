@@ -73,7 +73,7 @@
           "coffee_waste_container_full": "コーヒーカス容器がいっぱいです",
           "descale_alarm": "石灰除去アラーム",
           "replace_water_filter": "浄水フィルターを交換してください",
-          "coffe_ground_too_fine": "挽き具合が細かすぎます",
+          "coffee_ground_too_fine": "挽き具合が細かすぎます",
           "coffee_beans_empty": "コーヒー豆が空です",
           "machine_to_service": "サービスが必要です",
           "coffee_heater_probe_failure": "コーヒーヒータープローブ故障",
@@ -97,8 +97,7 @@
           "condense_fan_problem": "凝縮ファン故障",
           "clock_bt_comm_problem": "時計/BT通信エラー",
           "spi_comm_problem": "SPI通信エラー",
-          "unknown_alarm": "未知のアラーム",
-          "ignore_alarm": "アラームを無視"
+          "unknown_alarm": "未知のアラーム"
         }
       },
       "switches": {

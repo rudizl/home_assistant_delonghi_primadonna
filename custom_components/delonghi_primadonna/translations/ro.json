@@ -73,7 +73,7 @@
           "coffee_waste_container_full": "Recipientul pentru zaț este plin",
           "descale_alarm": "Alarmă decalcifiere",
           "replace_water_filter": "Înlocuiți filtrul de apă",
-          "coffe_ground_too_fine": "Măcinare prea fină",
+          "coffee_ground_too_fine": "Măcinare prea fină",
           "coffee_beans_empty": "Lipsă boabe de cafea",
           "machine_to_service": "Service necesar",
           "coffee_heater_probe_failure": "Defecțiune sondă încălzitor cafea",
@@ -97,8 +97,7 @@
           "condense_fan_problem": "Problemă ventilator condens",
           "clock_bt_comm_problem": "Problemă comunicare ceas/BT",
           "spi_comm_problem": "Problemă comunicare SPI",
-          "unknown_alarm": "Alarmă necunoscută",
-          "ignore_alarm": "Ignoră alarma"
+          "unknown_alarm": "Alarmă necunoscută"
         }
       },
       "switches": {
