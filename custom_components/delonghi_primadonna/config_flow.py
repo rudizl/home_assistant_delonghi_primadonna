@@ -23,7 +23,6 @@ from .protocol import normalize_mac
 _LOGGER = logging.getLogger(__name__)
 
 
-
 MODEL_OPTIONS = [
     SelectOptionDict(value=model.product_code, label=model.name)
     for model in get_machine_models_by_connection()
