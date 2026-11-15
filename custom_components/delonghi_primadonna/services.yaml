@@ -2,8 +2,6 @@ make_beverage:
   name: Prepare beverage
   description: Prepares beverages from the list of available beverages
   target:
-    device:
-      integration: delonghi_primadonna
     entity:
       integration: delonghi_primadonna
   fields:

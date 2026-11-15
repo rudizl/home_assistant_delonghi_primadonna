@@ -40,6 +40,7 @@ from .protocol import (ANSWER_MONITOR_V1, ANSWER_MONITOR_V2,
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class BeverageEntityFeature(IntFlag):
     """Supported features of the beverage entity"""
 
