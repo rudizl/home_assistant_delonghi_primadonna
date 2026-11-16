@@ -2,18 +2,24 @@
 import pytest
 
 from delonghi_primadonna import const
+from delonghi_primadonna.beverages import (BEVERAGE_IDS, BEVERAGES,
+                                           DEFAULT_BEVERAGES,
+                                           beverages_for_recipe_ids)
 from delonghi_primadonna.machine_switch import MachineSwitch, parse_switches
 from delonghi_primadonna.protocol import (MonitorData, answer_id,
-                                          normalize_mac, parse_hex_command,
+                                          brew_command, normalize_mac,
+                                          parse_hex_command,
                                           parse_monitor_data,
-                                          parse_profile_names,
-                                          parse_statistics, with_crc)
+                                          parse_profile_names, parse_recipe,
+                                          parse_statistics,
+                                          recipe_read_command, stop_command,
+                                          with_crc)
 
 # Commands and answers recorded from real machines, CRC included
 RECORDED = {
     name: getattr(const, name)
     for name in (
-        'BYTES_POWER', 'BYTES_POWER_OFF', 'DEBUG',
+        'BYTES_POWER', 'DEBUG',
         'COFFE_ON', 'COFFE_OFF', 'DOPPIO_ON', 'DOPPIO_OFF',
         'STEAM_ON', 'STEAM_OFF', 'HOTWATER_ON', 'HOTWATER_OFF',
         'ESPRESSO_ON', 'ESPRESSO_OFF', 'ESPRESSO2_ON', 'ESPRESSO2_OFF',
@@ -166,5 +172,90 @@ def test_normalize_mac(value, expected):
 def test_status_options_cover_every_status():
     options = set(const.STATUS_OPTIONS)
     assert set(const.MACHINE_STATUS.values()) <= options
+    assert set(const.MACHINE_STATUS_V1.values()) <= options
+    assert const.BREWING in options
     assert set(const.DEVICE_STATUS.values()) <= options
     assert {const.UNKNOWN_STATE, const.UNKNOWN_ALARM} <= options
+
+
+def test_monitor_v2_progress():
+    data = parse_monitor_data(bytes(const.START_COFFEE))
+    assert data.status == 7
+    assert data.sub_status == 4  # non-zero: a beverage is being made
+    packet = list(const.START_COFFEE)
+    packet[11] = 42
+    assert parse_monitor_data(bytes(packet)).percentage == 42
+
+
+# Recipes as the recorded app commands carry them
+@pytest.mark.parametrize(
+    ('name', 'beverage_id', 'ingredients'),
+    [
+        ('ESPRESSO_ON', 1, [(1, 40), (2, 3), (8, 0), (0, 0)]),
+        ('AMERICANO_ON', 6, [(1, 40), (2, 3), (15, 110), (0, 0)]),
+        ('HOTWATER_ON', 16, [(15, 250), (28, 1)]),
+        ('STEAM_ON', 17, [(9, 900), (28, 1)]),
+    ],
+)
+def test_brew_command_matches_recorded_app_commands(
+    name, beverage_id, ingredients
+):
+    assert with_crc(brew_command(beverage_id, ingredients)) == getattr(
+        const, name
+    )
+
+
+def test_brew_command_drops_recipe_metadata():
+    # visible (25), programmable (24) and index length (27) are not sent
+    recipe = [(1, 40), (2, 3), (8, 0), (0, 0), (24, 1), (25, 1), (27, 3)]
+    assert with_crc(brew_command(1, recipe)) == const.ESPRESSO_ON
+
+
+@pytest.mark.parametrize(
+    ('beverage_id', 'name'),
+    [
+        (1, 'ESPRESSO_OFF'), (2, 'COFFE_OFF'), (3, 'LONG_OFF'),
+        (4, 'ESPRESSO2_OFF'), (5, 'DOPPIO_OFF'), (6, 'AMERICANO_OFF'),
+        (16, 'HOTWATER_OFF'), (17, 'STEAM_OFF'),
+    ],
+)
+def test_stop_command_matches_recorded_app_commands(beverage_id, name):
+    assert with_crc(stop_command(beverage_id)) == getattr(const, name)
+
+
+def test_recipe_read_command():
+    assert recipe_read_command(1, 7)[:6] == [0x0d, 0x07, 0xa6, 0xf0, 1, 7]
+    assert recipe_read_command(1, 7)[1] == len(recipe_read_command(1, 7)) - 1
+
+
+def test_parse_recipe():
+    # Cappuccino for profile 1: coffee 80 ml, taste 3, milk 160,
+    # inversion 0, visible 1
+    body = [0x01, 0x00, 0x50, 0x02, 0x03, 0x09, 0x00, 0xa0, 0x0c, 0x00,
+            0x19, 0x01]
+    packet = bytes([0xd0, 5 + len(body) + 2, 0xa6, 0x0f, 1, 7]
+                   + body + [0, 0])
+    assert parse_recipe(packet) == (
+        1, 7, [(1, 80), (2, 3), (9, 160), (12, 0), (25, 1)]
+    )
+
+
+def test_parse_recipe_rejects_other_packets():
+    with pytest.raises(ValueError):
+        parse_recipe(bytes(const.DEVICE_READY))
+
+
+def test_beverages_for_dinamica_plus():
+    # Recipe ids of the Dinamica Plus 370.95.S in MachinesModels.json
+    ids = ['1', '2', '3', '4', '5', '7', '8', '9', '10', '11', '12', '13',
+           '15', '16', '230', '231', '232']
+    keys = beverages_for_recipe_ids(ids)
+    assert 'americano' not in keys and 'steam' not in keys
+    assert keys[:3] == ['espresso', 'coffee', 'long']
+    assert 'cappuccino' in keys and 'hot_water' in keys
+    assert len(keys) == 14
+
+
+def test_beverage_tables_are_consistent():
+    assert all(BEVERAGES[BEVERAGE_IDS[k]] == k for k in BEVERAGE_IDS)
+    assert set(DEFAULT_BEVERAGES) <= set(BEVERAGE_IDS)

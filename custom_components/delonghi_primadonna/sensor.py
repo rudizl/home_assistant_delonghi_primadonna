@@ -3,7 +3,7 @@
 from homeassistant.components.sensor import (SensorDeviceClass, SensorEntity,
                                              SensorStateClass)
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, UnitOfVolume
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -28,6 +28,7 @@ async def async_setup_entry(
             DelongiPrimadonnaNozzleSensor(delongh_device, hass),
             DelongiPrimadonnaStatusSensor(delongh_device, hass),
             DelongiPrimadonnaSwitchesSensor(delongh_device, hass),
+            DelongiPrimadonnaProgressSensor(delongh_device, hass),
 
             # Statistics sensors
             DelongiPrimadonnaStatisticsSensor(
@@ -140,6 +141,18 @@ class DelongiPrimadonnaStatusSensor(
             'state_code': self.device.status_code,
             'alarm_bits': f'0x{self.device.service:08x}',
         }
+
+
+class DelongiPrimadonnaProgressSensor(DelonghiDeviceEntity, SensorEntity):
+    """Progress of the running operation (beverage, heating, rinse)."""
+
+    _attr_translation_key = 'progress'
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_icon = 'mdi:progress-clock'
+
+    @property
+    def native_value(self) -> int:
+        return self.device.progress
 
 
 class DelongiPrimadonnaSwitchesSensor(

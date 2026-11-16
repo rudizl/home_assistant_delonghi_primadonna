@@ -5,7 +5,7 @@ import time
 import uuid
 from binascii import hexlify
 from datetime import datetime
-from enum import IntFlag, StrEnum
+from enum import StrEnum
 
 from bleak import BleakClient
 from bleak.exc import BleakDBusError, BleakError
@@ -15,53 +15,31 @@ from homeassistant.const import CONF_MAC, CONF_MODEL, CONF_NAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import (AMERICANO_OFF, AMERICANO_ON, AVAILABLE_PROFILES,
-                    BASE_COMMAND, BYTES_AUTOPOWEROFF_COMMAND,
-                    BYTES_LOAD_PROFILES, BYTES_POWER, BYTES_POWER_OFF,
-                    BYTES_STATISTICS_COMMAND, BYTES_SWITCH_COMMAND,
-                    BYTES_TIME_COMMAND, BYTES_WATER_HARDNESS_COMMAND,
-                    BYTES_WATER_TEMPERATURE_COMMAND, COFFE_OFF, COFFE_ON,
+from .beverages import BEVERAGE_IDS
+from .const import (AMERICANO_ON, AVAILABLE_PROFILES, BASE_COMMAND, BREWING,
+                    BYTES_AUTOPOWEROFF_COMMAND, BYTES_LOAD_PROFILES,
+                    BYTES_POWER, BYTES_STATISTICS_COMMAND,
+                    BYTES_SWITCH_COMMAND, BYTES_TIME_COMMAND,
+                    BYTES_WATER_HARDNESS_COMMAND,
+                    BYTES_WATER_TEMPERATURE_COMMAND, COFFE_ON,
                     COFFEE_GROUNDS_CONTAINER_CLEAN,
                     COFFEE_GROUNDS_CONTAINER_DETACHED,
                     COFFEE_GROUNDS_CONTAINER_FULL, CONTROLL_CHARACTERISTIC,
                     DEBUG, DEVICE_READY, DEVICE_STATUS, DEVICE_TURNOFF, DOMAIN,
-                    DOPPIO_OFF, DOPPIO_ON, ESPRESSO2_OFF, ESPRESSO2_ON,
-                    ESPRESSO_OFF, ESPRESSO_ON, HOTWATER_OFF, HOTWATER_ON,
-                    LONG_OFF, LONG_ON, MACHINE_STATUS, NAME_CHARACTERISTIC,
-                    NOZZLE_STATE, START_COFFEE, STEAM_OFF, STEAM_ON,
-                    UNKNOWN_ALARM, UNKNOWN_STATE, WATER_SHORTAGE,
-                    WATER_TANK_DETACHED)
+                    DOPPIO_ON, ESPRESSO2_ON, ESPRESSO_ON, HOTWATER_ON, LONG_ON,
+                    MACHINE_STATUS, MACHINE_STATUS_V1, NAME_CHARACTERISTIC,
+                    NOZZLE_STATE, START_COFFEE, STEAM_ON, UNKNOWN_ALARM,
+                    UNKNOWN_STATE, WATER_SHORTAGE, WATER_TANK_DETACHED)
 from .machine_switch import MachineSwitch, parse_switches
 from .model import get_machine_model
 from .protocol import (ANSWER_MONITOR_V1, ANSWER_MONITOR_V2,
-                       ANSWER_PROFILE_SELECT, ANSWER_PROFILES,
+                       ANSWER_PROFILE_SELECT, ANSWER_PROFILES, ANSWER_RECIPE,
                        ANSWER_STATISTICS, START_BYTE, MonitorData, answer_id,
-                       parse_hex_command, parse_monitor_data,
-                       parse_profile_names, parse_statistics, with_crc)
+                       brew_command, parse_hex_command, parse_monitor_data,
+                       parse_profile_names, parse_recipe, parse_statistics,
+                       recipe_read_command, stop_command, with_crc)
 
 _LOGGER = logging.getLogger(__name__)
-
-
-class BeverageEntityFeature(IntFlag):
-    """Supported features of the beverage entity"""
-
-    MAKE_BEVERAGE = 1
-    SET_TEMPERATURE = 2
-    SET_INTENCE = 4
-
-
-class AvailableBeverage(StrEnum):
-    """Coffee machine available beverages"""
-
-    NONE = 'none'
-    STEAM = 'steam'
-    LONG = 'long'
-    COFFEE = 'coffee'
-    DOPIO = 'dopio'
-    HOTWATER = 'hot_water'
-    ESPRESSO = 'espresso'
-    AMERICANO = 'americano'
-    ESPRESSO2 = 'espresso2'
 
 
 class NotificationType(StrEnum):
@@ -69,14 +47,6 @@ class NotificationType(StrEnum):
 
     STATUS = 'status'
     PROCESS = 'process'
-
-
-class BeverageCommand:
-    """Coffee machine beverage commands"""
-
-    def __init__(self, on, off):
-        self.on = on
-        self.off = off
 
 
 class BeverageNotify:
@@ -98,16 +68,16 @@ class DeviceSwitches:
         self.is_on = False
 
 
-BEVERAGE_COMMANDS = {
-    AvailableBeverage.NONE: BeverageCommand(DEBUG, DEBUG),
-    AvailableBeverage.STEAM: BeverageCommand(STEAM_ON, STEAM_OFF),
-    AvailableBeverage.LONG: BeverageCommand(LONG_ON, LONG_OFF),
-    AvailableBeverage.COFFEE: BeverageCommand(COFFE_ON, COFFE_OFF),
-    AvailableBeverage.DOPIO: BeverageCommand(DOPPIO_ON, DOPPIO_OFF),
-    AvailableBeverage.HOTWATER: BeverageCommand(HOTWATER_ON, HOTWATER_OFF),
-    AvailableBeverage.ESPRESSO: BeverageCommand(ESPRESSO_ON, ESPRESSO_OFF),
-    AvailableBeverage.AMERICANO: BeverageCommand(AMERICANO_ON, AMERICANO_OFF),
-    AvailableBeverage.ESPRESSO2: BeverageCommand(ESPRESSO2_ON, ESPRESSO2_OFF),
+# Recorded app commands, used when the machine returns no saved recipe
+FALLBACK_COMMANDS = {
+    'espresso': ESPRESSO_ON,
+    'coffee': COFFE_ON,
+    'long': LONG_ON,
+    'espresso2': ESPRESSO2_ON,
+    'dopio': DOPPIO_ON,
+    'americano': AMERICANO_ON,
+    'hot_water': HOTWATER_ON,
+    'steam': STEAM_ON,
 }
 
 DEVICE_NOTIFICATION = {
@@ -152,22 +122,16 @@ POWER_ANSWERS = frozenset({0x84, ANSWER_MONITOR_V2, ANSWER_MONITOR_V1})
 # after a Bluetooth reconnect); send it again once.
 POWER_ON_ATTEMPTS = 2
 
-# State bytes that mean the machine accepted power off: off, or the
-# rinse it runs before switching off.
-POWER_OFF_STATES = frozenset({0, 2})
-
 # How often and how many times to ask for the state after a power
-# command before deciding the machine did not react.
+# command before deciding the machine did not react. Power off is not
+# offered: the machine ignores it over Bluetooth (no known project
+# has a working command for it).
 STATE_CHECKS = 5
 STATE_CHECK_INTERVAL = 2.0
 
 
 def _is_powered_on(state: int) -> bool:
     return state != 0
-
-
-def _is_powering_off(state: int) -> bool:
-    return state in POWER_OFF_STATES
 
 
 class DelongiPrimadonna:
@@ -191,7 +155,17 @@ class DelongiPrimadonna:
         self.hostname = ''
         self.model = 'Prima Donna'
         self.friendly_name = ''
-        self.cooking = AvailableBeverage.NONE
+        # Beverage id of the last started beverage, for the stop button
+        self.current_beverage: int | None = None
+        # Profile chosen in Home Assistant (id), or the name restored
+        # before the profile names were loaded from the machine
+        self.selected_profile: int | None = None
+        self.restored_profile_name: str | None = None
+        self._recipes: dict[tuple[int, int], list[tuple[int, int]]] = {}
+        # Progress of the running operation in percent
+        self.progress = 0
+        # Machine is doing something (heating, brewing, rinsing, ...)
+        self.busy = False
         self.connected = False
         self.notify = False
         self.steam_nozzle = NOZZLE_STATE[-1]
@@ -440,6 +414,13 @@ class DelongiPrimadonna:
             )
         elif kind == ANSWER_STATISTICS:
             self._parse_statistics(value)
+        elif kind == ANSWER_RECIPE:
+            try:
+                profile, beverage_id, ingredients = parse_recipe(value)
+            except ValueError as err:
+                _LOGGER.warning('Failed to parse recipe: %s', err)
+            else:
+                self._recipes[(profile, beverage_id)] = ingredients
 
         hex_value = hexlify(value, ' ')
 
@@ -478,13 +459,29 @@ class DelongiPrimadonna:
         # Display status: show first active alarm, or machine state.
         # Codes without a name map to a fixed key so the status sensor
         # can be an enum; the raw codes stay in its attributes.
+        states = (
+            MACHINE_STATUS if kind == ANSWER_MONITOR_V2 else MACHINE_STATUS_V1
+        )
+        state = states.get(monitor_data.status, UNKNOWN_STATE)
+        # v2: state 7 is ready, or making a beverage when the progress
+        # byte is set
+        brewing = (
+            kind == ANSWER_MONITOR_V2
+            and monitor_data.status == 7
+            and monitor_data.sub_status != 0
+        )
+        if brewing:
+            state = BREWING
+        self.busy = state not in ('turned_off', 'ready')
+        self.progress = monitor_data.percentage if self.busy else 0
+        if not self.busy:
+            self.current_beverage = None
+
         if monitor_data.alarms > 0:
             first = (monitor_data.alarms & -monitor_data.alarms).bit_length()
             self.status = DEVICE_STATUS.get(first - 1, UNKNOWN_ALARM)
         else:
-            self.status = MACHINE_STATUS.get(
-                monitor_data.status, UNKNOWN_STATE
-            )
+            self.status = state
 
         # Active switches (v2 only; v1 uses different byte offsets)
         if kind == ANSWER_MONITOR_V2:
@@ -514,19 +511,6 @@ class DelongiPrimadonna:
                 self.name, attempt, POWER_ON_ATTEMPTS,
             )
         raise DelonghiCommandError(f'{self.name} did not turn on')
-
-    async def power_off(self) -> None:
-        """Turn the device off and check that it did.
-
-        Not every model accepts this over Bluetooth (a Dinamica Plus
-        ignores it), so a machine that stays on is reported as an error.
-        """
-        await self.send_command(BYTES_POWER_OFF, answers=POWER_ANSWERS)
-        if not await self._wait_for_state(_is_powering_off):
-            raise DelonghiCommandError(
-                f'{self.name} did not turn off; this model may not '
-                'support turning off over Bluetooth'
-            )
 
     async def _set_switch(self, name: str, value: bool) -> None:
         """Send the switch command with one switch changed.
@@ -566,17 +550,61 @@ class DelongiPrimadonna:
         """Disable sound alarm"""
         await self._set_switch('sounds', False)
 
-    async def beverage_start(self, beverage: AvailableBeverage) -> None:
-        """Start beverage"""
-        command = BEVERAGE_COMMANDS.get(beverage)
-        if command is None:
-            raise HomeAssistantError(f'Unknown beverage: {beverage}')
-        await self.send_command(command.on)
+    @property
+    def profile_id(self) -> int:
+        """Profile whose saved recipes are used for beverages."""
+        if self.selected_profile is not None:
+            return self.selected_profile
+        for pid, name in self.profiles_map.items():
+            if name == self.restored_profile_name:
+                return pid
+        return 1
 
-    async def beverage_cancel(self) -> None:
-        """Cancel beverage"""
-        if self.cooking != AvailableBeverage.NONE:
-            await self.send_command(BEVERAGE_COMMANDS.get(self.cooking).off)
+    async def read_recipe(
+        self, beverage_id: int
+    ) -> list[tuple[int, int]] | None:
+        """Read the saved recipe of a beverage for the current profile."""
+        key = (self.profile_id, beverage_id)
+        self._recipes.pop(key, None)
+        await self.send_command(recipe_read_command(*key))
+        return self._recipes.get(key) or None
+
+    async def beverage_start(self, beverage: str) -> None:
+        """Start a beverage with the recipe saved on the machine.
+
+        Falls back to the recorded app command for the eight original
+        beverages when the machine returns no recipe.
+        """
+        beverage_id = BEVERAGE_IDS.get(beverage)
+        if beverage_id is None:
+            raise HomeAssistantError(f'Unknown beverage: {beverage}')
+        recipe = await self.read_recipe(beverage_id)
+        if recipe:
+            _LOGGER.debug(
+                'Recipe for %s, profile %s: %s',
+                beverage, self.profile_id, recipe,
+            )
+            command = brew_command(beverage_id, recipe)
+        elif beverage in FALLBACK_COMMANDS:
+            _LOGGER.warning(
+                'No saved recipe for %s, using the default one', beverage
+            )
+            command = FALLBACK_COMMANDS[beverage]
+        else:
+            raise DelonghiCommandError(
+                f'{self.name} has no recipe for {beverage}'
+            )
+        await self.send_command(command)
+        self.current_beverage = beverage_id
+
+    async def beverage_stop(self) -> None:
+        """Stop the beverage started from Home Assistant."""
+        if self.current_beverage is None:
+            raise HomeAssistantError(
+                'No beverage started from Home Assistant is running'
+            )
+        await self.send_command(stop_command(self.current_beverage))
+        self.current_beverage = None
 
     async def debug(self):
         """Send command which causes status reply"""
@@ -639,6 +667,7 @@ class DelongiPrimadonna:
         _LOGGER.debug("Send select profile command id=%s", profile_id)
         message = [0x0D, 0x06, 0xA9, 0xF0, profile_id, 0x00, 0x00]
         await self.send_command(message)
+        self.selected_profile = profile_id
 
     async def set_auto_power_off(self, power_off_interval) -> None:
         """Set auto power off time."""

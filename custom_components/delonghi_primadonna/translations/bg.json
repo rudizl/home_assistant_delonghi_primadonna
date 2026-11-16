@@ -24,20 +24,6 @@
       "profile": {
         "name": "Профил"
       },
-      "make_beverage": {
-        "name": "Напитка",
-        "state": {
-          "none": "Нищо",
-          "steam": "Пара",
-          "long": "Лонго",
-          "coffee": "Кафе",
-          "dopio": "Допио",
-          "hot_water": "Гореща вода",
-          "espresso": "Еспресо",
-          "americano": "Американо",
-          "espresso2": "Еспресо 2"
-        }
-      },
       "energy_save_mode": {
         "name": "Изключване след",
         "state": {
@@ -97,6 +83,66 @@
       },
       "sync_time": {
         "name": "Сверяване на часовника"
+      },
+      "beverage_cappuccino": {
+        "name": "Капучино"
+      },
+      "beverage_latte_macchiato": {
+        "name": "Лате макиато"
+      },
+      "beverage_caffe_latte": {
+        "name": "Кафе лате"
+      },
+      "beverage_flat_white": {
+        "name": "Флат уайт"
+      },
+      "beverage_espresso_macchiato": {
+        "name": "Еспресо макиато"
+      },
+      "beverage_hot_milk": {
+        "name": "Топло мляко"
+      },
+      "beverage_cappuccino_doppio": {
+        "name": "Капучино Допио+"
+      },
+      "beverage_cold_milk": {
+        "name": "Студено мляко"
+      },
+      "beverage_cappuccino_reverse": {
+        "name": "Капучино Реверс"
+      },
+      "beverage_ciocco": {
+        "name": "Шоколад"
+      },
+      "beverage_ristretto": {
+        "name": "Ристрето"
+      },
+      "beverage_long_espresso": {
+        "name": "Дълго еспресо"
+      },
+      "beverage_coffee_cream": {
+        "name": "Кафе крема"
+      },
+      "beverage_tea": {
+        "name": "Чай"
+      },
+      "beverage_coffee_pot": {
+        "name": "Кана кафе"
+      },
+      "beverage_cortado": {
+        "name": "Кортадо"
+      },
+      "beverage_long_black": {
+        "name": "Лонг блек"
+      },
+      "beverage_travel_mug": {
+        "name": "Термочаша"
+      },
+      "beverage_brew_over_ice": {
+        "name": "Кафе с лед"
+      },
+      "stop": {
+        "name": "Спри напитката"
       }
     },
     "switch": {
@@ -112,9 +158,6 @@
       "sounds": {
         "name": "Звуци"
       },
-      "power": {
-        "name": "Захранване"
-      },
       "time_sync": {
         "name": "Сверяване на часовника"
       }
@@ -125,9 +168,10 @@
         "state": {
           "unknown": "Неизвестно",
           "detached": "Свалена",
-          "steam": "Пара",
           "milk_frother": "Приставка за мляко",
-          "milk_frother_cleaning": "Почистване на приставката за мляко"
+          "milk_frother_cleaning": "Почистване на приставката за мляко",
+          "hot_water_spout": "Чучур за гореща вода",
+          "chocolate": "Шоколад"
         }
       },
       "switches": {
@@ -186,13 +230,15 @@
           "heating": "Загряване",
           "washing": "Измиване",
           "ready": "Готова",
-          "brewing": "Варене",
+          "brewing": "Прави напитка",
           "rinsing": "Изплакване",
-          "preparing": "Приготвяне",
           "delivering_hot_water": "Подаване на гореща вода",
           "cleaning_milk_spout": "Почистване на дюзата за мляко",
           "descaling": "Декалциране",
-          "unknown_state": "Неизвестно състояние"
+          "unknown_state": "Неизвестно състояние",
+          "steam_preparation": "Подготвя пара",
+          "milk_preparation": "Подготвя мляко",
+          "chocolate_preparation": "Подготвя шоколад"
         }
       },
       "total_coffee": {
@@ -221,6 +267,9 @@
       },
       "additional_coffee": {
         "name": "Допълнително кафе"
+      },
+      "progress": {
+        "name": "Прогрес"
       }
     },
     "binary_sensor": {
@@ -260,15 +309,33 @@
   "selector": {
     "beverage": {
       "options": {
-        "none": "Нищо",
-        "steam": "Пара",
-        "long": "Лонго",
-        "coffee": "Кафе",
-        "dopio": "Допио",
-        "hot_water": "Гореща вода",
         "espresso": "Еспресо",
+        "coffee": "Кафе",
+        "long": "Лонго",
+        "espresso2": "Еспресо 2",
+        "dopio": "Допио",
         "americano": "Американо",
-        "espresso2": "Еспресо 2"
+        "cappuccino": "Капучино",
+        "latte_macchiato": "Лате макиато",
+        "caffe_latte": "Кафе лате",
+        "flat_white": "Флат уайт",
+        "espresso_macchiato": "Еспресо макиато",
+        "hot_milk": "Топло мляко",
+        "cappuccino_doppio": "Капучино Допио+",
+        "cold_milk": "Студено мляко",
+        "cappuccino_reverse": "Капучино Реверс",
+        "hot_water": "Гореща вода",
+        "steam": "Пара",
+        "ciocco": "Шоколад",
+        "ristretto": "Ристрето",
+        "long_espresso": "Дълго еспресо",
+        "coffee_cream": "Кафе крема",
+        "tea": "Чай",
+        "coffee_pot": "Кана кафе",
+        "cortado": "Кортадо",
+        "long_black": "Лонг блек",
+        "travel_mug": "Термочаша",
+        "brew_over_ice": "Кафе с лед"
       }
     }
   }

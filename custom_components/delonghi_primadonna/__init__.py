@@ -15,9 +15,10 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 
+from .beverages import BEVERAGE_IDS
 from .const import BEVERAGE_SERVICE_NAME, DOMAIN
 from .coordinator import DelonghiCoordinator
-from .device import AvailableBeverage, BeverageEntityFeature, DelongiPrimadonna
+from .device import DelongiPrimadonna
 from .model import get_machine_models
 
 PLATFORMS: list[str] = [
@@ -35,16 +36,20 @@ __all__ = [
     'async_setup',
     'async_setup_entry',
     'async_unload_entry',
-    'BeverageEntityFeature',
 ]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 ATTR_BEVERAGE = 'beverage'
 
+# Entities of earlier versions that no longer exist: the power switch
+# (the machine ignores power off over Bluetooth) and the beverage
+# select (replaced by one button per beverage).
+REMOVED_ENTITIES = ('DelongiPrimadonnaPowerSwitch', 'BeverageSelect')
+
 MAKE_BEVERAGE_SCHEMA = vol.Schema(
     {
-        vol.Required(ATTR_BEVERAGE): vol.In([*AvailableBeverage]),
+        vol.Required(ATTR_BEVERAGE): vol.In(sorted(BEVERAGE_IDS)),
         vol.Optional(ATTR_ENTITY_ID): cv.entity_ids,
         vol.Optional(ATTR_DEVICE_ID): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(ATTR_AREA_ID): vol.All(cv.ensure_list, [cv.string]),
@@ -124,6 +129,20 @@ def _target_devices(
     return [loaded[entry_id] for entry_id in entry_ids]
 
 
+def _remove_old_entities(
+    hass: HomeAssistant, entry: DelonghiConfigEntry, mac: str
+) -> None:
+    """Delete registry entries of entities this version no longer has."""
+    registry = er.async_get(hass)
+    for name in REMOVED_ENTITIES:
+        for entity in er.async_entries_for_config_entry(
+            registry, entry.entry_id
+        ):
+            if entity.unique_id == f'{mac}_{name}':
+                _LOGGER.info('Removing old entity %s', entity.entity_id)
+                registry.async_remove(entity.entity_id)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: DelonghiConfigEntry
 ) -> bool:
@@ -135,6 +154,7 @@ async def async_setup_entry(
     coordinator = DelonghiCoordinator(hass, entry, delonghi_device)
     delonghi_device.coordinator = coordinator
     entry.runtime_data = delonghi_device
+    _remove_old_entities(hass, entry, delonghi_device.mac)
     _LOGGER.debug('Device id %s', entry.unique_id)
     _LOGGER.debug("Device data %s", entry.data)
 

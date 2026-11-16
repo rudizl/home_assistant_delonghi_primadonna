@@ -36,32 +36,53 @@ POWER_OFF_OPTIONS = {
     '3h': 4
 }
 
+# Accessory on the spout (monitor byte 4, EcamAccessory in the app)
 NOZZLE_STATE = {
     -1: "unknown",
     0: "detached",
-    1: "steam",
+    1: "hot_water_spout",
     2: "milk_frother",
-    3: "milk_frother_cleaning",
+    3: "chocolate",
+    4: "milk_frother_cleaning",
 }
 
 # Skipable maintanence states
 SERVICE_STATE = {0: 'OK', 4: 'DESCALING'}
 
-# Machine working states (monitor_data.status byte). Decoded by the
-# community in upstream PRs #235/#238 and verified against live data
-# from a Dinamica Plus (v2 protocol: 0 when off, 7 when on and ready,
-# 2 during the shutdown wash cycle).
+# Machine state byte of v2 monitor packets (0x75), as named by the
+# app (EcamMachineState; decoded in mmastrac/longshot, which is tested
+# on a Dinamica Plus). State 7 covers both ready and dispensing: the
+# progress byte tells them apart, see BREWING.
 MACHINE_STATUS = {
     0: 'turned_off',
     1: 'heating',
     2: 'washing',
     3: 'heating',
-    4: 'heating',
-    5: 'ready',  # v1 protocol ready
-    6: 'brewing',
-    7: 'ready',  # v2 protocol ready
+    4: 'descaling',
+    5: 'steam_preparation',
+    6: 'heating',  # recovery: reheating after a beverage
+    7: 'ready',
     8: 'rinsing',
-    10: 'preparing',
+    10: 'milk_preparation',
+    11: 'delivering_hot_water',
+    12: 'cleaning_milk_spout',
+    14: 'descaling',
+    16: 'chocolate_preparation',
+}
+BREWING = 'brewing'
+
+# State byte of v1 monitor packets (0x70), from community reports
+MACHINE_STATUS_V1 = {
+    0: 'turned_off',
+    1: 'heating',
+    2: 'washing',
+    3: 'heating',
+    4: 'heating',
+    5: 'ready',
+    6: BREWING,
+    7: 'ready',
+    8: 'rinsing',
+    10: 'milk_preparation',
     11: 'delivering_hot_water',
     12: 'cleaning_milk_spout',
     14: 'descaling',
@@ -106,7 +127,6 @@ DEVICE_STATUS = {
 Command bytes
 """
 BYTES_POWER = [0x0d, 0x07, 0x84, 0x0f, 0x02, 0x01, 0x55, 0x12]
-BYTES_POWER_OFF = [0x0d, 0x07, 0x84, 0x0f, 0x01, 0x01, 0x00, 0x41]
 
 # Default bitmask for commands
 BASE_COMMAND = '10000001'
@@ -147,12 +167,6 @@ BYTES_STATISTICS_COMMAND = [
 BYTES_LOAD_PROFILES = [0x0d, 0x07, 0xa4, 0xf0, 0x01, 0x06, 0x00, 0x00]
 BYTES_LOAD_PROFILES_1 = [0x0d, 0x07, 0xa4, 0xf0, 0x01, 0x03, 0x00, 0x00]
 BYTES_LOAD_PROFILES_2 = [0x0d, 0x07, 0xa4, 0xf0, 0x04, 0x06, 0x00, 0x00]
-
-# Power switch optimistic state hold times (seconds).
-# These prevent the switch flickering during machine boot and shutdown
-# while the device reports intermediate states.
-POWER_ON_HOLD_SECONDS = 60
-POWER_OFF_HOLD_SECONDS = 30
 
 COFFE_ON = [0x0d, 0x0f, 0x83, 0xf0, 0x02, 0x01, 0x01,
             0x00, 0x67, 0x02, 0x02, 0x00, 0x00, 0x06, 0x77, 0xff]
@@ -237,6 +251,6 @@ START_COFFEE = [0xd0, 0x12, 0x75, 0x0f, 0x01, 0x05, 0x00, 0x00,
 
 # Every value the status sensor can take
 STATUS_OPTIONS = sorted(
-    {*MACHINE_STATUS.values(), *DEVICE_STATUS.values(),
-     UNKNOWN_STATE, UNKNOWN_ALARM}
+    {*MACHINE_STATUS.values(), *MACHINE_STATUS_V1.values(),
+     *DEVICE_STATUS.values(), BREWING, UNKNOWN_STATE, UNKNOWN_ALARM}
 )

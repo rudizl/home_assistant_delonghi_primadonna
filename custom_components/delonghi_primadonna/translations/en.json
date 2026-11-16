@@ -24,20 +24,6 @@
       "profile": {
         "name": "Profile"
       },
-      "make_beverage": {
-        "name": "Beverage",
-        "state": {
-          "none": "None",
-          "steam": "Steam",
-          "long": "Long",
-          "coffee": "Coffee",
-          "dopio": "Dopio",
-          "hot_water": "Hot water",
-          "espresso": "Espresso",
-          "americano": "Americano",
-          "espresso2": "Espresso 2"
-        }
-      },
       "energy_save_mode": {
         "name": "Turn off after",
         "state": {
@@ -75,13 +61,13 @@
         "name": "Steam"
       },
       "beverage_long": {
-        "name": "Long"
+        "name": "Long coffee"
       },
       "beverage_coffee": {
         "name": "Coffee"
       },
       "beverage_dopio": {
-        "name": "Dopio"
+        "name": "Doppio+"
       },
       "beverage_hot_water": {
         "name": "Hot water"
@@ -93,10 +79,70 @@
         "name": "Americano"
       },
       "beverage_espresso2": {
-        "name": "Espresso 2"
+        "name": "2x espresso"
       },
       "sync_time": {
         "name": "Sync clock"
+      },
+      "beverage_cappuccino": {
+        "name": "Cappuccino"
+      },
+      "beverage_latte_macchiato": {
+        "name": "Latte macchiato"
+      },
+      "beverage_caffe_latte": {
+        "name": "Caffè latte"
+      },
+      "beverage_flat_white": {
+        "name": "Flat white"
+      },
+      "beverage_espresso_macchiato": {
+        "name": "Espresso macchiato"
+      },
+      "beverage_hot_milk": {
+        "name": "Hot milk"
+      },
+      "beverage_cappuccino_doppio": {
+        "name": "Cappuccino doppio+"
+      },
+      "beverage_cold_milk": {
+        "name": "Cold milk"
+      },
+      "beverage_cappuccino_reverse": {
+        "name": "Cappuccino reverse"
+      },
+      "beverage_ciocco": {
+        "name": "Chocolate"
+      },
+      "beverage_ristretto": {
+        "name": "Ristretto"
+      },
+      "beverage_long_espresso": {
+        "name": "Long espresso"
+      },
+      "beverage_coffee_cream": {
+        "name": "Coffee cream"
+      },
+      "beverage_tea": {
+        "name": "Tea"
+      },
+      "beverage_coffee_pot": {
+        "name": "Coffee pot"
+      },
+      "beverage_cortado": {
+        "name": "Cortado"
+      },
+      "beverage_long_black": {
+        "name": "Long black"
+      },
+      "beverage_travel_mug": {
+        "name": "Travel mug"
+      },
+      "beverage_brew_over_ice": {
+        "name": "Brew over ice"
+      },
+      "stop": {
+        "name": "Stop beverage"
       }
     },
     "switch": {
@@ -112,9 +158,6 @@
       "sounds": {
         "name": "Sounds"
       },
-      "power": {
-        "name": "Power"
-      },
       "time_sync": {
         "name": "Time sync"
       }
@@ -125,9 +168,10 @@
         "state": {
           "unknown": "Unknown",
           "detached": "Detached",
-          "steam": "Steam",
           "milk_frother": "Milk frother",
-          "milk_frother_cleaning": "Milk frother cleaning"
+          "milk_frother_cleaning": "Milk frother cleaning",
+          "hot_water_spout": "Hot water spout",
+          "chocolate": "Chocolate"
         }
       },
       "switches": {
@@ -186,13 +230,15 @@
           "heating": "Heating",
           "washing": "Washing",
           "ready": "Ready",
-          "brewing": "Brewing",
+          "brewing": "Making a beverage",
           "rinsing": "Rinsing",
-          "preparing": "Preparing",
           "delivering_hot_water": "Delivering hot water",
           "cleaning_milk_spout": "Cleaning milk spout",
           "descaling": "Descaling",
-          "unknown_state": "Unknown state"
+          "unknown_state": "Unknown state",
+          "steam_preparation": "Preparing steam",
+          "milk_preparation": "Preparing milk",
+          "chocolate_preparation": "Preparing chocolate"
         }
       },
       "total_coffee": {
@@ -221,6 +267,9 @@
       },
       "additional_coffee": {
         "name": "Additional Coffee"
+      },
+      "progress": {
+        "name": "Progress"
       }
     },
     "binary_sensor": {
@@ -260,15 +309,33 @@
   "selector": {
     "beverage": {
       "options": {
-        "none": "None",
-        "steam": "Steam",
-        "long": "Long",
-        "coffee": "Coffee",
-        "dopio": "Dopio",
-        "hot_water": "Hot water",
         "espresso": "Espresso",
+        "coffee": "Coffee",
+        "long": "Long coffee",
+        "espresso2": "2x espresso",
+        "dopio": "Doppio+",
         "americano": "Americano",
-        "espresso2": "Espresso 2"
+        "cappuccino": "Cappuccino",
+        "latte_macchiato": "Latte macchiato",
+        "caffe_latte": "Caffè latte",
+        "flat_white": "Flat white",
+        "espresso_macchiato": "Espresso macchiato",
+        "hot_milk": "Hot milk",
+        "cappuccino_doppio": "Cappuccino doppio+",
+        "cold_milk": "Cold milk",
+        "cappuccino_reverse": "Cappuccino reverse",
+        "hot_water": "Hot water",
+        "steam": "Steam",
+        "ciocco": "Chocolate",
+        "ristretto": "Ristretto",
+        "long_espresso": "Long espresso",
+        "coffee_cream": "Coffee cream",
+        "tea": "Tea",
+        "coffee_pot": "Coffee pot",
+        "cortado": "Cortado",
+        "long_black": "Long black",
+        "travel_mug": "Travel mug",
+        "brew_over_ice": "Brew over ice"
       }
     }
   }
