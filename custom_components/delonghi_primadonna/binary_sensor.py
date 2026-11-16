@@ -39,7 +39,7 @@ class DelongiPrimadonnaEnabledSensor(
 
     _attr_device_class = BinarySensorDeviceClass.RUNNING
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_name = 'Enabled'
+    _attr_translation_key = 'enabled'
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -71,7 +71,7 @@ class DelongiPrimadonnaDescaleSensor(
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_name = 'Descaling'
+    _attr_translation_key = 'descaling'
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -102,7 +102,7 @@ class DelongiPrimadonnaFilterSensor(
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_name = 'Filter'
+    _attr_translation_key = 'filter'
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()

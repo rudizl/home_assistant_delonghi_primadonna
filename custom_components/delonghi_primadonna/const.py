@@ -67,6 +67,9 @@ MACHINE_STATUS = {
     14: 'descaling',
 }
 
+UNKNOWN_STATE = 'unknown_state'
+UNKNOWN_ALARM = 'unknown_alarm'
+
 DEVICE_STATUS = {
     0: "empty_water_tank",
     1: "coffee_waste_container_full",
@@ -230,3 +233,10 @@ DEVICE_TURNOFF = [0xd0, 0x12, 0x75, 0x0f, 0x01, 0x01, 0x00, 0x00,
 START_COFFEE = [0xd0, 0x12, 0x75, 0x0f, 0x01, 0x05, 0x00, 0x00,
                 0x00, 0x07, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
                 0x00, 0x5c, 0xa7]
+
+
+# Every value the status sensor can take
+STATUS_OPTIONS = sorted(
+    {*MACHINE_STATUS.values(), *DEVICE_STATUS.values(),
+     UNKNOWN_STATE, UNKNOWN_ALARM}
+)

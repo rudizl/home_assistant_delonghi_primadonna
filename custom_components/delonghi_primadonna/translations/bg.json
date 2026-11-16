@@ -6,7 +6,8 @@
     "error": {
       "cannot_connect": "Неуспешно свързване",
       "invalid_auth": "Невалидна автентикация",
-      "unknown": "Неочаквана грешка"
+      "unknown": "Неочаквана грешка",
+      "invalid_mac": "Въведете MAC адреса във вида AA:BB:CC:DD:EE:FF"
     },
     "step": {
       "user": {
@@ -24,21 +25,78 @@
         "name": "Профил"
       },
       "make_beverage": {
-        "name": "Напитка"
+        "name": "Напитка",
+        "state": {
+          "none": "Нищо",
+          "steam": "Пара",
+          "long": "Лонго",
+          "coffee": "Кафе",
+          "dopio": "Допио",
+          "hot_water": "Гореща вода",
+          "espresso": "Еспресо",
+          "americano": "Американо",
+          "espresso2": "Еспресо 2"
+        }
       },
       "energy_save_mode": {
-        "name": "Изключване след"
+        "name": "Изключване след",
+        "state": {
+          "15min": "15 минути",
+          "30min": "30 минути",
+          "1h": "1 час",
+          "2h": "2 часа",
+          "3h": "3 часа"
+        }
       },
       "water_hardness": {
-        "name": "Твърдост на водата"
+        "name": "Твърдост на водата",
+        "state": {
+          "soft": "Мека",
+          "medium": "Средна",
+          "hard": "Твърда",
+          "very_hard": "Много твърда"
+        }
       },
       "water_temperature": {
-        "name": "Температура на водата"
+        "name": "Температура на водата",
+        "state": {
+          "low": "Ниска",
+          "medium": "Средна",
+          "high": "Висока",
+          "highest": "Най-висока"
+        }
       }
     },
     "button": {
       "power_on": {
         "name": "Включване"
+      },
+      "beverage_steam": {
+        "name": "Пара"
+      },
+      "beverage_long": {
+        "name": "Лонго"
+      },
+      "beverage_coffee": {
+        "name": "Кафе"
+      },
+      "beverage_dopio": {
+        "name": "Допио"
+      },
+      "beverage_hot_water": {
+        "name": "Гореща вода"
+      },
+      "beverage_espresso": {
+        "name": "Еспресо"
+      },
+      "beverage_americano": {
+        "name": "Американо"
+      },
+      "beverage_espresso2": {
+        "name": "Еспресо 2"
+      },
+      "sync_time": {
+        "name": "Сверяване на часовника"
       }
     },
     "switch": {
@@ -133,7 +191,8 @@
           "preparing": "Приготвяне",
           "delivering_hot_water": "Подаване на гореща вода",
           "cleaning_milk_spout": "Почистване на дюзата за мляко",
-          "descaling": "Декалциране"
+          "descaling": "Декалциране",
+          "unknown_state": "Неизвестно състояние"
         }
       },
       "total_coffee": {
@@ -162,6 +221,27 @@
       },
       "additional_coffee": {
         "name": "Допълнително кафе"
+      }
+    },
+    "binary_sensor": {
+      "enabled": {
+        "name": "Включена"
+      },
+      "descaling": {
+        "name": "Декалциране"
+      },
+      "filter": {
+        "name": "Филтър"
+      }
+    },
+    "image": {
+      "image": {
+        "name": "Снимка"
+      }
+    },
+    "text": {
+      "debug_input": {
+        "name": "Дебъг команда"
       }
     }
   },

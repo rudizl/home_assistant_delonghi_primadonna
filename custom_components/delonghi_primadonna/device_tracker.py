@@ -52,7 +52,7 @@ class DelongiPrimadonnaDeviceTracker(DelonghiDeviceEntity, ScannerEntity):
     @property
     def source_type(self) -> SourceType:
         """Return the source type of the device."""
-        return SourceType.ROUTER
+        return SourceType.BLUETOOTH_LE
 
     @property
     def is_connected(self) -> bool:

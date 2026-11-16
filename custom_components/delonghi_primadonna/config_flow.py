@@ -18,6 +18,7 @@ from homeassistant.helpers.selector import (SelectOptionDict, SelectSelector,
 
 from .const import DOMAIN
 from .model import get_machine_models_by_connection, guess_machine_model
+from .protocol import normalize_mac
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -125,19 +126,26 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the initial step."""
 
-        if user_input is None:
-            return self.async_show_form(
-                step_id="user",
-                data_schema=self._schema,
-            )
-        else:
-            await self.async_set_unique_id(user_input[CONF_MAC])
-            self._abort_if_unique_id_configured()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            mac = normalize_mac(user_input[CONF_MAC])
+            if mac is None:
+                errors[CONF_MAC] = "invalid_mac"
+            else:
+                # Upper case, as Bluetooth discovery reports it, so a
+                # manual entry and a discovered one get the same id.
+                await self.async_set_unique_id(mac)
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(
+                    title=user_input[CONF_NAME],
+                    data={**user_input, CONF_MAC: mac},
+                )
 
-            return self.async_create_entry(
-                title=user_input[CONF_NAME],
-                data=user_input,
-            )
+        return self.async_show_form(
+            step_id="user",
+            data_schema=self._schema,
+            errors=errors,
+        )
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):

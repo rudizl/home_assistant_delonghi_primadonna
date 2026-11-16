@@ -6,7 +6,8 @@
     "error": {
       "cannot_connect": "Failed to connect",
       "invalid_auth": "Invalid authentication",
-      "unknown": "Unexpected error"
+      "unknown": "Unexpected error",
+      "invalid_mac": "Enter the MAC address as AA:BB:CC:DD:EE:FF"
     },
     "step": {
       "user": {
@@ -24,21 +25,78 @@
         "name": "Profile"
       },
       "make_beverage": {
-        "name": "Beverage"
+        "name": "Beverage",
+        "state": {
+          "none": "None",
+          "steam": "Steam",
+          "long": "Long",
+          "coffee": "Coffee",
+          "dopio": "Dopio",
+          "hot_water": "Hot water",
+          "espresso": "Espresso",
+          "americano": "Americano",
+          "espresso2": "Espresso 2"
+        }
       },
       "energy_save_mode": {
-        "name": "Turn off after"
+        "name": "Turn off after",
+        "state": {
+          "15min": "15 minutes",
+          "30min": "30 minutes",
+          "1h": "1 hour",
+          "2h": "2 hours",
+          "3h": "3 hours"
+        }
       },
       "water_hardness": {
-        "name": "Water hardness"
+        "name": "Water hardness",
+        "state": {
+          "soft": "Soft",
+          "medium": "Medium",
+          "hard": "Hard",
+          "very_hard": "Very hard"
+        }
       },
       "water_temperature": {
-        "name": "Water temperature"
+        "name": "Water temperature",
+        "state": {
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "highest": "Highest"
+        }
       }
     },
     "button": {
       "power_on": {
         "name": "Turn on"
+      },
+      "beverage_steam": {
+        "name": "Steam"
+      },
+      "beverage_long": {
+        "name": "Long"
+      },
+      "beverage_coffee": {
+        "name": "Coffee"
+      },
+      "beverage_dopio": {
+        "name": "Dopio"
+      },
+      "beverage_hot_water": {
+        "name": "Hot water"
+      },
+      "beverage_espresso": {
+        "name": "Espresso"
+      },
+      "beverage_americano": {
+        "name": "Americano"
+      },
+      "beverage_espresso2": {
+        "name": "Espresso 2"
+      },
+      "sync_time": {
+        "name": "Sync clock"
       }
     },
     "switch": {
@@ -133,7 +191,8 @@
           "preparing": "Preparing",
           "delivering_hot_water": "Delivering hot water",
           "cleaning_milk_spout": "Cleaning milk spout",
-          "descaling": "Descaling"
+          "descaling": "Descaling",
+          "unknown_state": "Unknown state"
         }
       },
       "total_coffee": {
@@ -162,6 +221,27 @@
       },
       "additional_coffee": {
         "name": "Additional Coffee"
+      }
+    },
+    "binary_sensor": {
+      "enabled": {
+        "name": "Enabled"
+      },
+      "descaling": {
+        "name": "Descaling"
+      },
+      "filter": {
+        "name": "Filter"
+      }
+    },
+    "image": {
+      "image": {
+        "name": "Image"
+      }
+    },
+    "text": {
+      "debug_input": {
+        "name": "Debug input"
       }
     }
   },
