@@ -21,6 +21,35 @@ ANSWER_MONITOR_V2 = 0x75
 ANSWER_STATISTICS = 0xA2
 ANSWER_PROFILES = 0xA4
 ANSWER_PROFILE_SELECT = 0xA9
+ANSWER_RECIPE = 0xA6
+ANSWER_BEVERAGE = 0x83
+
+# Recipe ingredient ids (EcamIngredients in the app)
+INGREDIENT_TEMP = 0
+INGREDIENT_COFFEE = 1
+INGREDIENT_TASTE = 2
+INGREDIENT_DUE_X_PER = 8
+INGREDIENT_MILK = 9
+INGREDIENT_INVERSION = 12
+INGREDIENT_HOT_WATER = 15
+INGREDIENT_ACCESSORY = 28
+# Quantities are two bytes, everything else one byte
+WIDE_INGREDIENTS = frozenset(
+    {INGREDIENT_COFFEE, INGREDIENT_MILK, INGREDIENT_HOT_WATER}
+)
+# What a brew command carries; a recipe answer also has display
+# metadata (visible, programmable, index length) that is not sent.
+# The app sends the accessory too (recorded hot water and steam).
+BREW_INGREDIENTS = frozenset({
+    INGREDIENT_TEMP, INGREDIENT_COFFEE, INGREDIENT_TASTE,
+    INGREDIENT_DUE_X_PER, INGREDIENT_MILK, INGREDIENT_INVERSION,
+    INGREDIENT_HOT_WATER, INGREDIENT_ACCESSORY,
+})
+
+TRIGGER_START = 0x01
+TRIGGER_STOP = 0x02
+# The app ends every recorded beverage command with 0x06
+TASTE_PREPARE_INVERSION = 0x06
 
 PROFILE_NAME_SIZE = 20
 PROFILE_HEADER_SIZE = 4
@@ -37,6 +66,8 @@ class MonitorData:
     status: int
     sub_status: int
     nozzle_state: int
+    # Progress of the running operation in percent (v2 only)
+    percentage: int = 0
 
 
 def with_crc(message: list[int]) -> list[int]:
@@ -73,9 +104,11 @@ def parse_monitor_data(data: bytes) -> MonitorData | None:
                 + (data[12] << 16) + (data[13] << 24)
             ),
             status=data[9],
+            # Byte 10 is non-zero while a beverage is being made
             sub_status=data[10],
             # Nozzle state: byte 4 (MonitorDataV2.a())
             nozzle_state=data[4],
+            percentage=data[11],
         )
 
     if kind == ANSWER_MONITOR_V1:
@@ -165,3 +198,78 @@ def normalize_mac(value: str) -> str | None:
     if len(mac) == 12 and ':' not in mac:
         mac = ':'.join(mac[i:i + 2] for i in range(0, 12, 2))
     return mac if MAC_PATTERN.match(mac) else None
+
+
+def _request(payload: list[int]) -> list[int]:
+    """Frame a request: start byte, length, payload, CRC placeholder."""
+    message = [REQUEST_BYTE, 0, *payload, 0, 0]
+    message[1] = len(message) - 1
+    return message
+
+
+def recipe_read_command(profile: int, beverage_id: int) -> list[int]:
+    """Ask for the saved recipe of a beverage for a profile."""
+    return _request([ANSWER_RECIPE, 0xF0, profile, beverage_id])
+
+
+def encode_ingredients(ingredients: list[tuple[int, int]]) -> list[int]:
+    """Encode (ingredient id, value) pairs for a brew command."""
+    out: list[int] = []
+    for ingredient, value in ingredients:
+        out.append(ingredient)
+        if ingredient in WIDE_INGREDIENTS:
+            out += [(value >> 8) & 0xFF, value & 0xFF]
+        else:
+            out.append(value & 0xFF)
+    return out
+
+
+def brew_command(
+    beverage_id: int,
+    ingredients: list[tuple[int, int]],
+    taste: int = TASTE_PREPARE_INVERSION,
+) -> list[int]:
+    """Start a beverage with the given ingredients.
+
+    Only brewing ingredients are sent; recipe metadata is dropped.
+    """
+    brew = [(i, v) for i, v in ingredients if i in BREW_INGREDIENTS]
+    return _request([
+        ANSWER_BEVERAGE, 0xF0, beverage_id, TRIGGER_START,
+        *encode_ingredients(brew), taste,
+    ])
+
+
+def stop_command(beverage_id: int) -> list[int]:
+    """Stop the beverage that is being made."""
+    return _request([
+        ANSWER_BEVERAGE, 0xF0, beverage_id, TRIGGER_STOP,
+        TASTE_PREPARE_INVERSION,
+    ])
+
+
+def parse_recipe(data: bytes) -> tuple[int, int, list[tuple[int, int]]]:
+    """Parse a recipe answer into (profile, beverage id, ingredients).
+
+    Layout: [D0][len][A6][0F][profile][beverage][ingredients...][CRC]
+    """
+    if len(data) < 8 or data[0] != START_BYTE or data[2] != ANSWER_RECIPE:
+        raise ValueError('Not a recipe answer')
+    profile, beverage_id = data[4], data[5]
+    body = data[6:-2]
+    ingredients: list[tuple[int, int]] = []
+    idx = 0
+    while idx < len(body):
+        ingredient = body[idx]
+        if ingredient in WIDE_INGREDIENTS:
+            if idx + 2 >= len(body):
+                break
+            value = (body[idx + 1] << 8) | body[idx + 2]
+            idx += 3
+        else:
+            if idx + 1 >= len(body):
+                break
+            value = body[idx + 1]
+            idx += 2
+        ingredients.append((ingredient, value))
+    return profile, beverage_id, ingredients

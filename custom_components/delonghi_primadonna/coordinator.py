@@ -16,6 +16,9 @@ from .device import DelongiPrimadonna
 _LOGGER = logging.getLogger(__name__)
 
 UPDATE_INTERVAL = timedelta(seconds=60)
+# While the machine heats, brews or rinses, ask more often so the
+# status and progress follow it
+BUSY_UPDATE_INTERVAL = timedelta(seconds=5)
 
 # BLE drops single polls easily; only mark the entities unavailable
 # after this many polls in a row could not reach the machine.
@@ -50,6 +53,11 @@ class DelonghiCoordinator(DataUpdateCoordinator[None]):
     def _device_updated(self) -> None:
         """Push a state change from a BLE notification to entities."""
         self.async_update_listeners()
+        # A beverage or power on started: switch to the fast interval
+        # now instead of after the next slow poll
+        if self.device.busy and self.update_interval != BUSY_UPDATE_INTERVAL:
+            self.update_interval = BUSY_UPDATE_INTERVAL
+            self.hass.async_create_task(self.async_request_refresh())
 
     async def _async_update_data(self) -> None:
         """Poll the device.
@@ -70,6 +78,9 @@ class DelonghiCoordinator(DataUpdateCoordinator[None]):
             return None
 
         self._failures = 0
+        self.update_interval = (
+            BUSY_UPDATE_INTERVAL if self.device.busy else UPDATE_INTERVAL
+        )
         if self.device.switches.is_on:
             try:
                 await self.device.update_statistics()

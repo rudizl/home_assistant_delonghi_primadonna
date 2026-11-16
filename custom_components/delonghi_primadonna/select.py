@@ -12,7 +12,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .base_entity import DelonghiDeviceEntity
 from .const import POWER_OFF_OPTIONS
-from .device import AvailableBeverage, BeverageEntityFeature, DelongiPrimadonna
+from .device import DelongiPrimadonna
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,7 +27,6 @@ async def async_setup_entry(
     delongh_device: DelongiPrimadonna = entry.runtime_data
     async_add_entities(
         [
-            BeverageSelect(delongh_device, hass),
             EnergySaveModeSelect(delongh_device, hass),
             ProfileSelect(delongh_device, hass),
             WaterHardnessSelect(delongh_device, hass),
@@ -60,6 +59,8 @@ class ProfileSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
             and last_state.state not in ('', 'unknown', 'unavailable')
         ):
             self._attr_current_option = last_state.state
+            # Beverages use the saved recipes of this profile
+            self.device.restored_profile_name = last_state.state
 
     @property
     def options(self) -> list[str]:
@@ -82,29 +83,6 @@ class ProfileSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
         await self.device.select_profile(profile_id)
         self._attr_current_option = option
         self.async_write_ha_state()
-
-
-class BeverageSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):
-    """Beverage start implementation by the select"""
-
-    _attr_options = [*AvailableBeverage]
-    _attr_current_option = [*AvailableBeverage][0]
-    _attr_translation_key = 'make_beverage'
-    _attr_icon = 'mdi:coffee'
-    _attr_supported_features: BeverageEntityFeature \
-        = BeverageEntityFeature.MAKE_BEVERAGE
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        if (
-            (last_state := await self.async_get_last_state()) is not None
-            and last_state.state in self._attr_options
-        ):
-            self._attr_current_option = last_state.state
-
-    async def async_select_option(self, option: str) -> None:
-        """Select beverage action"""
-        await self.device.beverage_start(option)
 
 
 class EnergySaveModeSelect(DelonghiDeviceEntity, SelectEntity, RestoreEntity):

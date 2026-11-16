@@ -1,19 +1,16 @@
 """Switch entities for Delonghi Primadonna."""
 
-import time
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .base_entity import DelonghiDeviceEntity
-from .const import POWER_OFF_HOLD_SECONDS, POWER_ON_HOLD_SECONDS
 from .device import DelongiPrimadonna
 from .model import get_machine_model
 
@@ -29,7 +26,6 @@ async def async_setup_entry(
     model = get_machine_model(delongh_device.product_code)
 
     switches = [
-        DelongiPrimadonnaPowerSwitch(delongh_device, hass),
         DelongiPrimadonnaNotificationSwitch(delongh_device, hass),
         DelongiPrimadonnaPowerSaveSwitch(delongh_device, hass),
         DelongiPrimadonnaSoundsSwitch(delongh_device, hass),
@@ -49,59 +45,6 @@ async def async_setup_entry(
 
     async_add_entities(switches)
     return True
-
-
-class DelongiPrimadonnaPowerSwitch(DelonghiDeviceEntity, SwitchEntity):
-    """Switch to turn the coffee machine on or off."""
-
-    _attr_icon = 'mdi:power'
-    _attr_translation_key = 'power'
-
-    def __init__(self, device, hass):
-        super().__init__(device, hass)
-        self._booting = False
-        self._boot_until = 0.0
-        self._shutting_down = False
-        self._shutdown_until = 0.0
-
-    @property
-    def is_on(self) -> bool:
-        """Return true if the machine is on."""
-        now = time.monotonic()
-        if self._booting and now < self._boot_until:
-            return True
-        if self._shutting_down and now < self._shutdown_until:
-            return False
-        # Neither window active, clear flags and use real device state
-        self._booting = False
-        self._shutting_down = False
-        return self.device.switches.is_on
-
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the machine on."""
-        self._shutting_down = False
-        self._booting = True
-        self._boot_until = time.monotonic() + POWER_ON_HOLD_SECONDS
-        self.async_write_ha_state()
-        try:
-            await self.device.power_on()
-        except HomeAssistantError:
-            self._booting = False
-            self.async_write_ha_state()
-            raise
-
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn the machine off."""
-        self._booting = False
-        self._shutting_down = True
-        self._shutdown_until = time.monotonic() + POWER_OFF_HOLD_SECONDS
-        self.async_write_ha_state()
-        try:
-            await self.device.power_off()
-        except HomeAssistantError:
-            self._shutting_down = False
-            self.async_write_ha_state()
-            raise
 
 
 class DelongiPrimadonnaCupLightSwitch(
