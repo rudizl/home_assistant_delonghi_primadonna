@@ -144,7 +144,30 @@ class DelonghiCommandError(HomeAssistantError):
 
 # The machine does not echo the power command (0x84); it pushes a
 # monitor packet with the new state instead, within about a second.
+# Any monitor packet ends the wait (one can also come from a finished
+# beverage), so the power methods then check the state itself.
 POWER_ANSWERS = frozenset({0x84, ANSWER_MONITOR_V2, ANSWER_MONITOR_V1})
+
+# Power on is sometimes not executed (seen on a Dinamica Plus right
+# after a Bluetooth reconnect); send it again once.
+POWER_ON_ATTEMPTS = 2
+
+# State bytes that mean the machine accepted power off: off, or the
+# rinse it runs before switching off.
+POWER_OFF_STATES = frozenset({0, 2})
+
+# How often and how many times to ask for the state after a power
+# command before deciding the machine did not react.
+STATE_CHECKS = 5
+STATE_CHECK_INTERVAL = 2.0
+
+
+def _is_powered_on(state: int) -> bool:
+    return state != 0
+
+
+def _is_powering_off(state: int) -> bool:
+    return state in POWER_OFF_STATES
 
 
 class DelongiPrimadonna:
@@ -467,22 +490,42 @@ class DelongiPrimadonna:
         if kind == ANSWER_MONITOR_V2:
             self.active_switches = parse_switches(raw_packet)
 
+    async def _wait_for_state(self, predicate) -> bool:
+        """Ask the machine for its state until ``predicate`` holds.
+
+        Returns False when it still does not hold after STATE_CHECKS
+        status requests.
+        """
+        for _ in range(STATE_CHECKS):
+            if self.status_code is not None and predicate(self.status_code):
+                return True
+            await asyncio.sleep(STATE_CHECK_INTERVAL)
+            await self.send_command(DEBUG)
+        return self.status_code is not None and predicate(self.status_code)
+
     async def power_on(self) -> None:
-        """Turn the device on."""
-        await self.send_command(BYTES_POWER, answers=POWER_ANSWERS)
+        """Turn the device on and check that it did."""
+        for attempt in range(1, POWER_ON_ATTEMPTS + 1):
+            await self.send_command(BYTES_POWER, answers=POWER_ANSWERS)
+            if await self._wait_for_state(_is_powered_on):
+                return
+            _LOGGER.warning(
+                '%s did not turn on (attempt %d of %d)',
+                self.name, attempt, POWER_ON_ATTEMPTS,
+            )
+        raise DelonghiCommandError(f'{self.name} did not turn on')
 
     async def power_off(self) -> None:
-        """Turn the device off.
+        """Turn the device off and check that it did.
 
         Not every model accepts this over Bluetooth (a Dinamica Plus
-        ignores it), so a missing answer is reported as an error.
+        ignores it), so a machine that stays on is reported as an error.
         """
-        if not await self.send_command(
-            BYTES_POWER_OFF, answers=POWER_ANSWERS
-        ):
+        await self.send_command(BYTES_POWER_OFF, answers=POWER_ANSWERS)
+        if not await self._wait_for_state(_is_powering_off):
             raise DelonghiCommandError(
-                f'{self.name} did not react to the power off command; '
-                'this model may not support turning off over Bluetooth'
+                f'{self.name} did not turn off; this model may not '
+                'support turning off over Bluetooth'
             )
 
     async def _set_switch(self, name: str, value: bool) -> None:
